@@ -1,0 +1,17 @@
+{
+  "name": "try-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "API independiente de recomendación de talles y prueba virtual TRY.",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.mjs",
+    "dev": "node --env-file-if-exists=.env --watch server.mjs",
+    "check": "node --check server.mjs && node --check src/providers/openai.mjs && node --check src/services/catalog.mjs && node --check src/services/size-recommender.mjs",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "license": "UNLICENSED"
+}
