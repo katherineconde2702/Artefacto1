@@ -5,7 +5,7 @@
   global.TRY_CONFIG = Object.freeze({
     ...previous,
     // Cambiá solo este valor cuando la API esté desplegada.
-    apiBase: previous.apiBase || 'http://127.0.0.1:8787',
+    apiBase: previous.apiBase || 'https://artefacto1-1.onrender.com',
     // Permite que las imágenes sigan funcionando en subcarpetas y GitHub Pages.
     assetBase: previous.assetBase || new URL('./', scriptUrl).href
   });
