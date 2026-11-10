@@ -17,6 +17,13 @@ const expiresAt=new Date(Date.now()+5*60000).toISOString();
 const q=(id,priceMinor,date)=>({id,priceMinor,deliveryDate:date,currency:'UYU',expiresAt,mode:'demo'});
 const quotes=[q('a',20000,'2098-01-01'),{...q('b',18000,'2098-01-02'),promotionId:'offer'},q('c',15000,'2098-01-03'),q('d',15000,'2098-01-04')];
 const ready=()=>{const widget=new Widget();widget.config={available:true,mode:'demo',pricingMode:'distance'};return widget;};
+test('an empty successful availability response explains there are no deliveries and can be refreshed',async()=>{
+ const widget=ready();widget.setContext('empty-checkout');widget.session.address={id:'empty-zone',formattedAddress:'Pocitos'};
+ widget.session.request=async()=>({quotes:[]});await widget.loadQuotes();widget.render();
+ assert.match(widget.shadowRoot.innerHTML,/No hay entregas disponibles/);
+ assert.match(widget.shadowRoot.innerHTML,/Actualizar días y precios/);
+ widget.session.invalidateAddress();assert.equal(widget.session.quoted,false);widget.disconnectedCallback();
+});
 const zones={available:true,mode:'demo',pricingMode:'zones',departments:[{id:'montevideo',name:'Montevideo'},{id:'canelones',name:'Canelones'}],areas:[{id:'centro',name:'Centro',departmentId:'montevideo',kind:'neighborhood',available:true},{id:'pocitos',name:'Pocitos',departmentId:'montevideo',kind:'neighborhood',available:false},{id:'dept-canelones',name:'Canelones',departmentId:'canelones',kind:'department',available:true}]};
 test('widget limits an older API response to five choices while preserving the cheapest later delivery',async()=>{
  const widget=ready();widget.setContext('checkout-five');widget.session.address={id:'destination',formattedAddress:'Pocitos'};
