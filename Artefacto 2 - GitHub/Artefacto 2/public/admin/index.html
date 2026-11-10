@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+ <meta charset="utf-8">
+ <meta name="viewport" content="width=device-width,initial-scale=1">
+ <title>TRAMO · Administración</title>
+ <link rel="stylesheet" href="./admin.css">
+</head>
+<body>
+<svg class="icon-library" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+ <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></symbol>
+ <symbol id="i-box" viewBox="0 0 24 24"><path d="m12 3 9 5v8l-9 5-9-5V8l9-5Zm0 9 9-4M12 12 3 8m9 4v9M7.5 5.5l9 5"/></symbol>
+ <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></symbol>
+ <symbol id="i-discount" viewBox="0 0 24 24"><path d="m5 19 14-14"/><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="3"/></symbol>
+ <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2m-8 3h2"/></symbol>
+ <symbol id="i-tag" viewBox="0 0 24 24"><path d="M3 3h9l9 9-9 9-9-9V3Z"/><circle cx="8" cy="8" r="1"/></symbol>
+ <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 11a9 9 0 1 1 2.4 7M3 4v7h7m2-4v5l3 2"/></symbol>
+ <symbol id="i-code" viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6M14 3l-4 18"/></symbol>
+ <symbol id="i-shop" viewBox="0 0 24 24"><path d="m3 9 2-6h14l2 6M3 9a3 3 0 0 0 6 0 3 3 0 0 0 6 0 3 3 0 0 0 6 0M5 12v9h14v-9M9 21v-6h6v6"/></symbol>
+ <symbol id="i-arrow" viewBox="0 0 24 24"><path d="m9 5 7 7-7 7"/></symbol>
+ <symbol id="i-route" viewBox="0 0 24 24"><circle cx="5" cy="5" r="2"/><circle cx="19" cy="19" r="2"/><path d="M7 5h9a4 4 0 0 1 0 8H8a3 3 0 0 0 0 6h9"/></symbol>
+</svg>
+<div class="app">
+ <aside class="sidebar">
+  <a class="identity" href="/admin/" aria-label="Inicio de TRAMO"><span class="mark"><svg class="icon"><use href="#i-route"/></svg></span>TRAMO<span class="brand-label">Admin</span></a>
+  <nav id="portal-nav" aria-label="Administración de envíos" hidden>
+   <div class="nav-group"><p class="nav-label">Operación</p>
+    <button data-view="overview" class="active"><svg class="icon"><use href="#i-overview"/></svg><span>Resumen</span></button>
+    <button data-view="shipments"><svg class="icon"><use href="#i-box"/></svg><span>Envíos</span></button>
+   </div>
+   <div class="nav-group"><p class="nav-label">Configuración</p>
+    <button data-view="zones"><svg class="icon"><use href="#i-pin"/></svg><span>Zonas y tarifas</span></button>
+    <button data-view="discounts"><svg class="icon"><use href="#i-discount"/></svg><span>Descuentos</span></button>
+    <button data-view="windows"><svg class="icon"><use href="#i-calendar"/></svg><span>Franjas y cupos</span></button>
+    <button data-view="offers"><svg class="icon"><use href="#i-tag"/></svg><span>Promociones</span></button>
+   </div>
+   <div class="nav-group"><p class="nav-label">Sistema</p>
+    <button data-view="history"><svg class="icon"><use href="#i-history"/></svg><span>Historial</span></button>
+    <button data-view="integration"><svg class="icon"><use href="#i-code"/></svg><span>Integración</span></button>
+   </div>
+  </nav>
+  <div class="sidebar-bottom"><svg class="icon"><use href="#i-shop"/></svg><div><span class="sidebar-caption">Comercio</span><strong id="merchant-badge">Sin sesión</strong></div></div>
+ </aside>
+ <main>
+  <header class="topbar">
+   <div class="breadcrumb"><span>TRAMO</span><span class="separator">/</span><span id="page-category">Administración</span><span class="separator">/</span><strong id="page-title">Acceso</strong></div>
+   <div class="topbar-actions"><span id="environment-label" class="badge">Conectando</span><span id="scope-label" class="account-label">Panel de comercios</span><button id="portal-refresh" class="quiet" hidden>Actualizar</button><button id="portal-logout" class="quiet" hidden>Salir</button></div>
+  </header>
+  <div class="content">
+   <p id="portal-status" class="status" role="status" aria-live="polite">Conectando…</p>
+   <section id="portal-login-panel" class="login-layout">
+    <div class="login-heading"><span class="login-logo"><svg class="icon"><use href="#i-route"/></svg></span><h1>Acceder a TRAMO</h1><p>Administración de envíos de tu comercio.</p></div>
+    <div class="card login-card"><form id="portal-login">
+     <label>Identificador del comercio<input name="merchantId" required pattern="[a-zA-Z0-9_-]{1,80}" placeholder="Identificador asignado" autocomplete="organization" maxlength="80"></label>
+     <label>Correo electrónico<input name="email" type="email" autocomplete="username" required></label>
+     <label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+     <button id="portal-login-button" class="primary" type="submit">Ingresar</button>
+    </form><div id="portal-demo-entry" hidden><hr><button id="portal-demo" class="secondary">Abrir demostración local</button><p class="muted">Datos de ejemplo. Los cambios son temporales.</p></div></div>
+   </section>
+   <div id="portal-dashboard" hidden>
+    <p id="b2b-setup-note" class="notice" hidden>Actualización pendiente. Los descuentos por agrupación y las franjas todavía no están habilitados.</p>
+    <section data-page="overview">
+     <div class="page-heading"><div><h1>Resumen</h1><p>Estado del servicio de envíos.</p></div><button class="secondary" data-open="shipments">Ver envíos <span aria-hidden="true">→</span></button></div>
+     <div id="metrics" class="metrics"></div>
+     <div class="overview-grid">
+      <article class="card"><div class="card-heading"><h2>Configuración del servicio</h2><span class="subtle-label">Accesos rápidos</span></div>
+       <div class="settings-links">
+        <button data-open="zones"><span class="setting-icon"><svg class="icon"><use href="#i-pin"/></svg></span><span><strong>Zonas y tarifas</strong><small>Cobertura, tarifa base y mínimo.</small></span><svg class="icon chevron"><use href="#i-arrow"/></svg></button>
+        <button data-open="discounts"><span class="setting-icon"><svg class="icon"><use href="#i-discount"/></svg></span><span><strong>Descuentos</strong><small>Umbrales por cantidad de pedidos.</small></span><svg class="icon chevron"><use href="#i-arrow"/></svg></button>
+        <button data-open="windows"><span class="setting-icon"><svg class="icon"><use href="#i-calendar"/></svg></span><span><strong>Franjas y cupos</strong><small>Horarios y capacidad de entrega.</small></span><svg class="icon chevron"><use href="#i-arrow"/></svg></button>
+        <button data-open="offers"><span class="setting-icon"><svg class="icon"><use href="#i-tag"/></svg></span><span><strong>Promociones</strong><small>Precios especiales por zona y fecha.</small></span><svg class="icon chevron"><use href="#i-arrow"/></svg></button>
+       </div>
+      </article>
+      <article class="card"><div class="card-heading"><h2>Actividad reciente</h2><button class="quiet" data-open="history">Ver historial →</button></div><div id="overview-activity" class="activity-list"></div></article>
+     </div>
+    </section>
+    <section data-page="zones" hidden>
+     <div class="page-heading"><div><h1>Zonas y tarifas</h1><p>Cobertura y precios de envío en pesos uruguayos.</p></div><span class="currency-label">Moneda <strong>UYU</strong></span></div>
+     <div class="settings-layout">
+      <article class="card table-card"><div class="card-heading"><h2>Cobertura</h2><label class="search-label"><span class="sr-only">Buscar zona</span><input id="zone-search" type="search" placeholder="Buscar barrio o departamento"></label></div><div id="portal-rate-list" class="table-wrap scroll-table"></div></article>
+      <div class="editor-stack">
+       <article class="card"><div class="card-heading"><h2>Tarifa de zona</h2></div><form id="portal-zone-form"><div data-zone-selector="rate"></div><label>Precio de envío <span class="field-unit">UYU</span><input name="price" inputmode="decimal" required placeholder="249,00"></label><label class="switch"><input name="enabled" type="checkbox"><span>Zona habilitada</span></label><div class="form-footer"><button class="primary">Guardar tarifa</button></div></form></article>
+       <article class="card"><div class="card-heading"><h2>Mínimo de envío</h2></div><form id="portal-minimum-form"><label>Importe mínimo <span class="field-unit">UYU</span><input name="minimum" inputmode="decimal" required></label><div class="form-footer"><button class="secondary">Guardar mínimo</button></div></form><p class="field-help">Ningún descuento puede reducir el envío por debajo de este importe.</p></article>
+      </div>
+     </div>
+    </section>
+    <section data-page="discounts" hidden>
+     <div class="page-heading"><div><h1>Descuentos</h1><p>Reglas por cantidad de pedidos confirmados en la misma zona y franja.</p></div></div>
+     <div class="rules-layout">
+      <article class="card"><div class="card-heading"><h2>Configurar regla</h2></div><form id="portal-rule-form">
+       <div class="rule-scope"><label>Aplicar a<select name="areaId" id="rule-scope"></select></label><label class="switch"><input name="enabled" type="checkbox"><span>Regla activa</span></label></div>
+       <p id="rule-inheritance" class="field-help rule-hint"></p>
+       <div class="tier-toolbar"><label>Cantidad de escalones<input id="tier-count" type="number" min="0" max="20" value="2"></label><button id="add-tier" class="secondary" type="button">+ Agregar escalón</button></div>
+       <div class="tier-labels" aria-hidden="true"><span>#</span><span>Pedidos mínimos</span><span>Tipo de descuento</span><span>Valor</span><span></span></div>
+       <div id="tier-editor"></div><p class="field-help">Hasta 20 escalones. Se aplica el de mayor umbral alcanzado.</p>
+       <div class="form-footer"><button class="primary">Guardar regla</button></div>
+      </form><details class="help-disclosure"><summary>Cómo se calcula el descuento</summary><ol><li>Se parte de la tarifa de la zona.</li><li>Se cuentan pedidos confirmados de esa zona, fecha y franja.</li><li>Se aplica un único escalón: el mayor umbral alcanzado.</li><li>Se compara con la promoción manual y se usa el menor precio.</li><li>Se respeta el mínimo de envío. Las reservas aceptadas conservan su precio.</li></ol></details></article>
+      <div class="editor-stack">
+       <article class="card"><div class="card-heading"><h2>Simulador</h2><span class="tag neutral">Borrador</span></div><form id="portal-simulator"><label>Tarifa base <span class="field-unit">UYU</span><input name="base" inputmode="decimal" value="249" required></label><label>Pedidos coincidentes<input name="count" type="number" min="0" max="1000" value="2" required></label><label>Promoción manual <span class="field-unit">UYU · opcional</span><input name="promotion" inputmode="decimal" placeholder="Sin promoción"></label><button class="secondary full-width">Simular</button></form><div id="simulation-result" aria-live="polite"></div><p class="field-help">Usa la regla del editor. No guarda cambios.</p></article>
+       <details class="card compact-disclosure"><summary>Cotización vigente</summary><p class="field-help">Usa reglas guardadas y pedidos del comercio.</p><form id="portal-preview"><div data-zone-selector="preview"></div><label>Fecha y franja<select name="dispatch" required></select></label><button class="secondary full-width">Consultar precio</button></form><div id="live-preview" aria-live="polite"></div></details>
+      </div>
+     </div>
+     <article class="card table-card"><div class="card-heading"><h2>Reglas guardadas</h2></div><div id="portal-rule-list" class="table-wrap"></div></article>
+    </section>
+    <section data-page="windows" hidden>
+     <div class="page-heading"><div><h1>Franjas y cupos</h1><p>Horarios de entrega y capacidad compartida entre zonas.</p></div></div>
+     <div class="settings-layout">
+      <article class="card table-card"><div class="card-heading"><h2>Calendario de entregas</h2></div><div id="portal-window-list" class="table-wrap"></div><div id="legacy-days"></div><form id="portal-legacy-form" class="legacy-editor" hidden><div class="card-heading"><h3>Editar salida</h3></div><input name="maxDurationSeconds" type="hidden"><div class="form-grid"><label>Fecha<input name="deliveryDate" type="date" readonly required></label><label>Salida<input name="departureTime" type="time" required></label><label>Cupo máximo<input name="capacity" type="number" min="1" max="10" required></label></div><label class="switch"><input name="enabled" type="checkbox"><span>Aceptar nuevas reservas</span></label><p class="field-help">Cerrar la salida conserva los pedidos asignados.</p><button class="secondary">Guardar salida</button></form></article>
+      <div class="editor-stack"><article class="card"><div class="card-heading"><h2 id="window-form-title">Nueva franja</h2><button id="new-window" type="button" class="quiet">Limpiar</button></div><form id="portal-window-form"><input name="id" type="hidden"><label>Fecha<input name="deliveryDate" type="date" required></label><div class="form-row"><label>Desde<input name="startTime" type="time" value="10:00" required></label><label>Hasta<input name="endTime" type="time" value="13:00" required></label></div><label>Cupo máximo<input name="capacity" type="number" min="1" max="1000" value="10" required></label><label class="switch"><input name="enabled" type="checkbox" checked><span>Franja habilitada</span></label><div class="form-footer"><button class="primary">Guardar franja</button></div></form></article>
+       <details class="card compact-disclosure"><summary>Condiciones de capacidad</summary><ul><li>Hasta 24 franjas diarias, sin superposición.</li><li>Planificación para los próximos 31 días.</li><li>Las reservas ocupan cupo durante 15 minutos.</li><li>El cupo no puede ser menor al ocupado.</li><li>Una franja con pedidos conserva su horario.</li></ul></details>
+      </div>
+     </div>
+    </section>
+    <section data-page="offers" hidden>
+     <div class="page-heading"><div><h1>Promociones</h1><p>Precio especial de envío para una zona y fecha.</p></div></div>
+     <div class="settings-layout"><article class="card table-card"><div class="card-heading"><h2>Promociones guardadas</h2></div><div id="portal-offer-list" class="table-wrap"></div></article>
+      <article class="card editor-card"><div class="card-heading"><h2>Configurar promoción</h2><button id="new-offer" type="button" class="quiet">Limpiar</button></div><form id="portal-offer-form"><input name="id" type="hidden"><div data-zone-selector="offer"></div><label>Fecha<input name="deliveryDate" type="date" required></label><label>Precio final del envío <span class="field-unit">UYU</span><input name="price" inputmode="decimal" required></label><label class="switch"><input name="active" type="checkbox" checked><span>Promoción activa</span></label><div class="form-footer"><button class="primary">Guardar promoción</button></div></form><p class="field-help">Se compara con el descuento automático. Los descuentos no se acumulan.</p></article>
+     </div>
+    </section>
+    <section data-page="shipments" hidden>
+     <div class="page-heading"><div><h1>Envíos</h1><p>Pedidos confirmados, reservas y cancelaciones.</p></div></div>
+     <article class="card table-card"><div class="card-heading"><h2>Registro de envíos</h2><span class="subtle-label">Todos los estados</span></div><div id="portal-shipment-list" class="table-wrap"></div></article>
+     <details class="card compact-disclosure"><summary>Registrar envío de otro canal</summary><p class="field-help">El pedido debe estar confirmado. Este registro no procesa pagos.</p><form id="portal-external-form"><div class="form-grid"><div data-zone-selector="external"></div><label>Fecha y franja<select name="dispatch" required></select></label><label>Precio de envío <span class="field-unit">UYU</span><input name="price" inputmode="decimal" required></label></div><button class="primary">Registrar envío</button></form></details>
+    </section>
+    <section data-page="history" hidden>
+     <div class="page-heading"><div><h1>Historial</h1><p>Últimos 100 movimientos y cambios de configuración.</p></div></div><article class="card table-card"><div class="card-heading"><h2>Actividad del comercio</h2></div><div id="portal-history" class="table-wrap"></div></article>
+    </section>
+    <section data-page="integration" hidden>
+     <div class="page-heading"><div><h1>Integración</h1><p>Conexión de TRAMO con la tienda del comercio.</p></div><span class="tag neutral">Servidor y widget</span></div>
+     <div class="integration-layout"><article class="card"><div class="card-heading"><h2>Datos de conexión</h2></div><div id="integration-details"></div></article><article class="card"><div class="card-heading"><h2>Flujo de integración</h2></div><ol class="integration-steps"><li><strong>Crear compra</strong><span>Tu servidor genera el contexto con su credencial privada.</span></li><li><strong>Cotizar entrega</strong><span>El widget muestra zonas, tarifas y franjas de este comercio.</span></li><li><strong>Reservar cupo</strong><span>El comprador elige una opción de envío.</span></li><li><strong>Confirmar pedido</strong><span>Tu servidor verifica la compra y confirma el envío.</span></li></ol><p class="field-help">La credencial privada se usa únicamente en tu servidor.</p></article></div>
+    </section>
+   </div>
+   <footer><span>TRAMO</span><span>Administración de envíos</span></footer>
+  </div>
+ </main>
+</div>
+<script type="module" src="./portal.js"></script>
+</body>
+</html>
