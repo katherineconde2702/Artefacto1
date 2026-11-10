@@ -1,0 +1,1061 @@
+openapi: 3.1.0
+info:
+  title: TRY y Envíos a tu medida API
+  version: 3.0.0
+  description: >-
+    API para catálogo, recomendación de talles y prueba virtual de prendas.
+    Las fotografías se procesan únicamente cuando la persona acepta el
+    consentimiento indicado por la integración.
+servers:
+  - url: http://127.0.0.1:8787
+    description: Entorno local
+tags:
+  - name: Service
+  - name: Catalog
+  - name: Sizing
+  - name: Virtual try-on
+  - name: Shipping
+  - name: Shipping admin
+paths:
+  /api/health:
+    get:
+      tags: [Service]
+      operationId: getHealth
+      summary: Consultar el estado del servicio
+      responses:
+        '200':
+          description: Estado general y disponibilidad de la prueba virtual, sin revelar proveedor ni modelo.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+              example:
+                ok: true
+                service: TRY API
+                capabilities:
+                  tryOn:
+                    available: true
+        '403':
+          $ref: '#/components/responses/OriginNotAllowed'
+  /api/v1/products:
+    get:
+      tags: [Catalog]
+      operationId: listProducts
+      summary: Listar el catálogo público
+      responses:
+        '200':
+          description: Productos disponibles para recomendación y prueba virtual.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '403':
+          $ref: '#/components/responses/OriginNotAllowed'
+  /api/v1/products/{productId}:
+    get:
+      tags: [Catalog]
+      operationId: getProduct
+      summary: Obtener un producto público
+      parameters:
+        - $ref: '#/components/parameters/ProductId'
+      responses:
+        '200':
+          description: Producto encontrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/OriginNotAllowed'
+        '404':
+          $ref: '#/components/responses/ProductNotFound'
+  /api/v1/recommendation:
+    post:
+      tags: [Sizing]
+      operationId: createRecommendation
+      summary: Recomendar un talle según el producto
+      description: >-
+        Para prendas de ropa se requieren altura y peso. Para productos de
+        calzado se utiliza el largo del pie. La configuración actual del
+        catálogo contiene prendas de ropa para mujeres adultas.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecommendationRequest'
+            examples:
+              clothing:
+                summary: Prenda de ropa
+                value:
+                  productId: soft-knit-sweater
+                  heightCm: 150
+                  weightKg: 45
+              footwear:
+                summary: Calzado, cuando exista en el catálogo
+                value:
+                  productId: shoe-product-id
+                  footCm: 24.2
+      responses:
+        '200':
+          description: Recomendación calculada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecommendationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/OriginNotAllowed'
+        '404':
+          $ref: '#/components/responses/ProductNotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+  /api/v1/try-on:
+    post:
+      tags: [Virtual try-on]
+      operationId: createVirtualTryOn
+      summary: Generar una prueba virtual con el talle elegido
+      description: >-
+        Recibe una fotografía de cuerpo completo y las métricas utilizadas por
+        el recomendador. El servidor vuelve a calcular el talle recomendado y
+        utiliza altura y peso como restricciones de consistencia, manteniendo
+        la fotografía como fuente de la silueta y las proporciones visibles.
+        Esta operación está protegida por límites de tasa y concurrencia.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/TryOnRequest'
+            encoding:
+              person:
+                contentType: image/png, image/jpeg, image/webp
+      responses:
+        '200':
+          description: Prueba virtual generada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TryOnResponse'
+              example:
+                requestId: 8f40c88d-f33f-45d7-ae41-b60c943f0d8f
+                productId: soft-knit-sweater
+                size: S
+                targetFit: oversized
+                imageUrl: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/OriginNotAllowed'
+        '404':
+          $ref: '#/components/responses/ProductNotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          description: Se alcanzó el límite temporal de pruebas virtuales.
+          headers:
+            Retry-After:
+              description: Segundos hasta que puede volver a intentarse.
+              schema: { type: integer, minimum: 1 }
+            RateLimit-Limit:
+              $ref: '#/components/headers/RateLimitLimit'
+            RateLimit-Remaining:
+              $ref: '#/components/headers/RateLimitRemaining'
+            RateLimit-Reset:
+              $ref: '#/components/headers/RateLimitReset'
+            RateLimit-Policy:
+              $ref: '#/components/headers/RateLimitPolicy'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                requestId: 8f40c88d-f33f-45d7-ae41-b60c943f0d8f
+                code: rate_limited
+                error: Se alcanzó el límite temporal de pruebas virtuales.
+        '503':
+          description: >-
+            La generación está temporalmente indisponible o la instancia ya
+            está procesando el máximo de pruebas simultáneas.
+          headers:
+            Retry-After:
+              description: Segundos sugeridos antes de reintentar; está presente en límites de concurrencia.
+              schema: { type: integer, minimum: 1 }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                concurrencyLimit:
+                  value:
+                    requestId: 8f40c88d-f33f-45d7-ae41-b60c943f0d8f
+                    code: concurrency_limit
+                    error: El servicio está procesando el máximo de pruebas simultáneas.
+                temporarilyUnavailable:
+                  value:
+                    requestId: 8f40c88d-f33f-45d7-ae41-b60c943f0d8f
+                    code: provider_unavailable
+                    error: La prueba virtual no está disponible en este momento.
+        '504':
+          description: La generación superó el tiempo máximo de espera.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                requestId: 8f40c88d-f33f-45d7-ae41-b60c943f0d8f
+                code: provider_timeout
+                error: La generación demoró más de lo permitido. Intentá nuevamente.
+  /api/v1/shipping/config:
+    get:
+      tags: [Shipping]
+      summary: Modalidad de tarifas, geografía precargada, disponibilidad y Auth público
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      responses:
+        '200':
+          description: Nunca contiene claves privadas. available=false indica configuración o proveedor pendiente.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [mode, pricingMode, available, merchant, demoAdminAvailable]
+                properties:
+                  mode: { type: string, enum: [demo, live] }
+                  pricingMode: { type: string, enum: [zones, distance] }
+                  available: { type: boolean }
+                  storefrontAvailable: { type: boolean }
+                  merchant: { type: object }
+                  departments: { type: array, items: { type: object }, description: 19 departamentos precargados en zones. }
+                  areas: { type: array, items: { type: object } }
+                  demoAdminAvailable: { type: boolean }
+                  supabase:
+                    type: [object, 'null']
+                    properties:
+                      url: { type: string, format: uri }
+                      publishableKey: { type: string }
+        '429': { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/checkouts:
+    post:
+      tags: [Shipping]
+      security: [{ MerchantServer: [] }]
+      summary: Validar bolsa y emitir contexto opaco firmado de 30 minutos
+      description: >-
+        La seguridad MerchantServer es obligatoria en modo live; demo permite emisión anónima para la bolsa MAREA.
+        La credencial Bearer exclusiva del servidor autoriza únicamente SHIPPING_MERCHANT_ID (por defecto marea),
+        que también es el comercio implícito si el servidor omite merchantId. El navegador nunca recibe esa credencial.
+        Precios y total se resuelven en servidor;
+        no se admiten precios del cliente ni moneda distinta de UYU. Reiniciar invalida contextos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [items]
+              properties:
+                merchantId: { type: string, example: marea, description: Debe coincidir con SHIPPING_MERCHANT_ID en live; si se omite se usa ese alcance configurado. }
+                currency: { type: string, const: UYU }
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 24
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [productId, size, quantity]
+                    properties:
+                      productId: { type: string }
+                      size: { type: string, enum: [S, M, L, XL] }
+                      quantity: { type: integer, minimum: 1, maximum: 99 }
+      responses:
+        '201':
+          description: '{contextToken, checkout:{id,items,subtotalMinor,currency,expiresAt}}. Importes en centésimos UYU.'
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/store/checkouts:
+    post:
+      tags: [Shipping]
+      security: []
+      summary: Adaptador público del carrito MAREA con comercio fijo en servidor
+      description: >-
+        Disponible en demo o live con SHIPPING_STOREFRONT_ENABLED=true. No recibe merchantId,
+        precios, pago ni credenciales. El comercio es SHIPPING_MERCHANT_ID y los productos,
+        talles, cantidades y precios se validan en servidor. La confirmación real sigue privada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [items]
+              properties:
+                currency: { type: string, const: UYU }
+                items:
+                  type: array
+                  minItems: 1
+                  maxItems: 24
+                  items:
+                    type: object
+                    additionalProperties: false
+                    required: [productId, size, quantity]
+                    properties:
+                      productId: { type: string }
+                      size: { type: string, enum: [S, M, L, XL] }
+                      quantity: { type: integer, minimum: 1, maximum: 99 }
+      responses:
+        '201': { description: '{contextToken,checkout}. Mismo resultado del checkout autenticado, sin secretos.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/addresses/resolve:
+    post:
+      tags: [Shipping]
+      summary: Resolver zona seleccionada o domicilio en modalidad distance
+      description: Zones acepta sólo areaId del catálogo; no valida una calle ni consulta Google. Distance acepta inputAddress y conserva sus verificaciones.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [contextToken]
+              oneOf:
+                - required: [areaId]
+                  not: { required: [inputAddress] }
+                - required: [inputAddress]
+                  not: { required: [areaId] }
+              properties:
+                contextToken: { type: string }
+                inputAddress: { type: string, minLength: 5, maxLength: 300 }
+                areaId: { type: string, description: ID canónico de barrio Montevideo o dept-<departamento> interior. }
+      responses:
+        '200': { description: '{address:{id,formattedAddress,areaId,departmentId?,provider,confirmed:false}}. Ligada al contexto; zones no implica domicilio completo.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/quotes:
+    post:
+      tags: [Shipping]
+      summary: Confirmar destino y consultar hasta tres fechas y tarifas UYU
+      description: Zones usa tarifa manual/mínimo/oferta por fecha sin distancias ni subsidios automáticos. Zonas sin tarifa no devuelven opciones. Distance conserva el motor de recorrido separado.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [contextToken, addressId, confirmed]
+              properties:
+                contextToken: { type: string }
+                addressId: { type: string }
+                confirmed: { type: boolean, const: true }
+      responses:
+        '200':
+          description: No devuelve paradas, domicilios ajenos ni recorridos internos. Vigencia cinco minutos.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [quotes]
+                properties:
+                  quotes: { type: array, maxItems: 3, items: { $ref: '#/components/schemas/ShippingQuote' } }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/reservations:
+    post:
+      tags: [Shipping]
+      summary: Reservar cupo y precio durante quince minutos de forma atómica
+      description: Misma clave y mismo cuerpo repiten la respuesta; cuerpo distinto con esa clave genera 409. Un cambio de día, política o recorrido requiere consultar de nuevo.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [contextToken, quoteId]
+              properties:
+                contextToken: { type: string }
+                quoteId: { type: string }
+      responses:
+        '201': { $ref: '#/components/responses/ReservationResult' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/reservations/{id}/demo-confirm:
+    parameters:
+      - $ref: '#/components/parameters/ShippingId'
+    post:
+      tags: [Shipping]
+      summary: Confirmar pedido demo sin pago, sólo para el contexto propietario
+      description: Live siempre devuelve 403. La marca demo queda registrada permanentemente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [contextToken]
+              properties:
+                contextToken: { type: string }
+      responses:
+        '200': { $ref: '#/components/responses/ReservationResult' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/shipments/{id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/ShippingId'
+    post:
+      tags: [Shipping]
+      security: [{ MerchantServer: [] }]
+      summary: Confirmación exclusiva del servidor del comercio tras verificar el pedido
+      description: No acepta paid=true, actorId ni serverAuthorized del navegador. La clave pertenece exclusivamente al backend y sólo autoriza SHIPPING_MERCHANT_ID; omitir merchantId usa ese comercio configurado.
+      requestBody: { $ref: '#/components/requestBodies/MerchantBody' }
+      responses:
+        '200': { description: '{shipment}. Reserva confirmada sin alterar el precio aceptado.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/shipments/{id}/cancel:
+    parameters:
+      - $ref: '#/components/parameters/ShippingId'
+    post:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      summary: Cancelar con membresía administrativa y motivo
+      requestBody: { $ref: '#/components/requestBodies/Cancellation' }
+      responses:
+        '200': { description: '{shipment}. Se libera el cupo sin aumentar otros precios.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/demo-session:
+    post:
+      tags: [Shipping admin]
+      summary: Abrir administración demo local explícita
+      description: >-
+        Sólo SHIPPING_MODE=demo y SHIPPING_DEMO_ADMIN_ENABLED=true, NODE_ENV distinto de production,
+        socket y Host loopback y Origin permitido. Headers de proxy no habilitan acceso.
+        Token en memoria, vence en una hora, sin acceso Supabase real.
+      requestBody: { $ref: '#/components/requestBodies/MerchantBody' }
+      responses:
+        '201': { description: '{accessToken}. Mantener en memoria, nunca URL o almacenamiento persistente.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/overview:
+    get:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      summary: Resumen privado con membresía verificada en cada solicitud
+      responses:
+        '200': { description: '{merchant,policy,prices,areas,days,shipments,promotions,auditEvents}. Últimos 100 eventos del comercio/modo en orden descendente.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/audit:
+    get:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      summary: Últimos 100 cambios del comercio y modo, del más reciente al más antiguo
+      responses:
+        '200':
+          description: Entidad, actor verificado, hora y cambios permitidos; sin domicilios, tokens ni datos del proveedor.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [auditEvents]
+                properties:
+                  auditEvents:
+                    type: array
+                    maxItems: 100
+                    items: { $ref: '#/components/schemas/ShippingAuditEvent' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/settings:
+    get:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      responses:
+        '200': { description: '{policy}. Costos UYU, margen en puntos base y vigencias 5/15 minutos.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+    put:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      summary: Publicar versión de costos validada sin cambiar precios ya aceptados
+      requestBody: { $ref: '#/components/requestBodies/AdminSettings' }
+      responses:
+        '200': { description: '{policy}. Versión nueva.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/prices:
+    get:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      responses:
+        '200': { description: '{prices}. Mapa productId a enteros positivos en centésimos UYU.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+    put:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      summary: Guardar precios manuales de productos conocidos en UYU
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [merchantId, prices]
+              properties:
+                merchantId: { type: string }
+                prices: { type: object, minProperties: 1, additionalProperties: { type: integer, minimum: 1, maximum: 1000000000 } }
+      responses:
+        '200': { description: '{prices}. GET catálogo y nuevas bolsas usan estos importes.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/service-days:
+    get:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      responses:
+        '200': { description: '{days}. Fechas locales en America/Montevideo.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+    put:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [merchantId, day]
+              properties:
+                merchantId: { type: string }
+                day:
+                  type: object
+                  additionalProperties: false
+                  required: [deliveryDate, departureTime, capacity, maxDurationSeconds, enabled]
+                  properties:
+                    deliveryDate: { type: string, format: date }
+                    departureTime: { type: string, pattern: '^([01]\d|2[0-3]):[0-5]\d$' }
+                    capacity: { type: integer, minimum: 1, maximum: 10 }
+                    maxDurationSeconds: { type: integer, minimum: 60, maximum: 14400 }
+                    enabled: { type: boolean }
+      responses:
+        '200': { description: '{days}. Versión actualizada; una cotización anterior puede entrar en conflicto.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/promotions:
+    get:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      responses:
+        '200': { description: '{promotions}' }
+        default: { $ref: '#/components/responses/ShippingError' }
+    post:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      summary: Publicar precio fijo por barrio y día habilitado, sujeto al piso del recorrido
+      requestBody: { $ref: '#/components/requestBodies/Promotion' }
+      responses:
+        '201': { description: '{promotion}. No garantiza elegibilidad económica para todos los destinos.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/promotions/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ShippingId'
+    patch:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      requestBody: { $ref: '#/components/requestBodies/Promotion' }
+      responses:
+        '200': { description: '{promotion}. Oferta versionada y auditada.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/zone-rates:
+    get:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      responses:
+        '200': { description: '{areas,zoneRates,minimumMinor}. Tarifas del comercio y modo actuales.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+    put:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      summary: Guardar tarifa manual por barrio o departamento
+      description: Requiere zones. Audita el cambio e incrementa la versión global de política; cotizaciones anteriores no reservadas se invalidan, replays aceptados conservan precio.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [areaId, priceMinor, enabled]
+              properties:
+                merchantId: { type: string }
+                areaId: { type: string }
+                priceMinor: { type: integer, minimum: 1, maximum: 1000000000, description: Debe respetar el mínimo vigente incluso al deshabilitar la fila. }
+                enabled: { type: boolean }
+      responses:
+        '200': { description: '{zoneRates}. Requiere admin verificado y zona de catálogo.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/shipments:
+    get:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      parameters:
+        - $ref: '#/components/parameters/MerchantQuery'
+      responses:
+        '200': { description: '{shipments}. Sólo el comercio autorizado.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+    post:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      summary: Cargar envío externo confirmado por zona o dirección
+      description: Zones requiere areaId; distance requiere inputAddress. La misma clave y contenido repiten el envío original incluso si el proveedor falla después; contenido diferente genera 409.
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 128 }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [deliveryDate, priceMinor]
+              oneOf:
+                - required: [areaId]
+                  not: { required: [inputAddress] }
+                - required: [inputAddress]
+                  not: { required: [areaId] }
+              properties:
+                merchantId: { type: string }
+                inputAddress: { type: string, minLength: 5, maxLength: 300 }
+                areaId: { type: string }
+                deliveryDate: { type: string, format: date }
+                priceMinor: { type: integer, minimum: 1 }
+      responses:
+        '201': { description: '{shipment}. Zona o dirección identificada; cupo y política comprobados atómicamente. No sustituye la dirección final de entrega.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/shipments/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ShippingId'
+    patch:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      requestBody: { $ref: '#/components/requestBodies/Cancellation' }
+      responses:
+        '200': { description: '{shipment}. Requiere status=cancelled y motivo; conserva cancellationReason, cancelledBy y cancelledAt de la primera cancelación en reintentos.' }
+        default: { $ref: '#/components/responses/ShippingError' }
+components:
+  securitySchemes:
+    AdminSession:
+      type: http
+      scheme: bearer
+      description: Supabase Auth verificado por servidor más membresía explícita; o token demo local restringido.
+    MerchantServer:
+      type: http
+      scheme: bearer
+      description: SHIPPING_MERCHANT_API_KEY ligada exclusivamente a SHIPPING_MERCHANT_ID (por defecto marea), jamás disponible para el navegador. Obligatoria para checkout live y toda confirmación del comercio; checkout demo permite acceso anónimo.
+  requestBodies:
+    MerchantBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+            properties:
+              merchantId: { type: string, example: marea }
+    Cancellation:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [merchantId, reason]
+            properties:
+              merchantId: { type: string }
+              status: { type: string, const: cancelled }
+              reason: { type: string, minLength: 3, maxLength: 300 }
+    Promotion:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [merchantId, areaId, deliveryDate, priceMinor, active]
+            properties:
+              merchantId: { type: string }
+              areaId: { type: string }
+              deliveryDate: { type: string, format: date }
+              priceMinor: { type: integer, minimum: 1 }
+              active: { type: boolean }
+    AdminSettings:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [merchantId, policy]
+            properties:
+              merchantId: { type: string }
+              policy: { $ref: '#/components/schemas/ShippingPolicy' }
+  parameters:
+    MerchantQuery:
+      in: query
+      name: merchantId
+      schema: { type: string, default: marea }
+    ShippingId:
+      in: path
+      name: id
+      required: true
+      schema: { type: string }
+    ProductId:
+      in: path
+      name: productId
+      required: true
+      description: Identificador estable del producto.
+      schema:
+        type: string
+        minLength: 1
+      example: soft-knit-sweater
+  headers:
+    RateLimitLimit:
+      description: Cantidad máxima de generaciones admitidas en la ventana.
+      schema: { type: integer, minimum: 0 }
+    RateLimitRemaining:
+      description: Generaciones restantes en la ventana actual.
+      schema: { type: integer, minimum: 0 }
+    RateLimitReset:
+      description: Segundos hasta el reinicio de la ventana.
+      schema: { type: integer, minimum: 1 }
+    RateLimitPolicy:
+      description: Política aplicada en formato `límite;w=segundos`.
+      schema: { type: string }
+  responses:
+    ShippingError:
+      description: >-
+        Error saneado con requestId. 400 datos; 401 sesión; 403 permisos/origen;
+        404 recurso; 409 cupo/versión/idempotencia; 410 vencimiento; 422 dirección;
+        429 cuota; 503 configuración, Auth, base o proveedor no disponibles. Nunca activa demo en live.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    ReservationResult:
+      description: Reserva del contexto propietario, nunca domicilios ajenos.
+      content:
+        application/json:
+          schema:
+            type: object
+            required: [reservation]
+            properties:
+              reservation: { $ref: '#/components/schemas/ShippingReservation' }
+    BadRequest:
+      description: La solicitud no es válida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    OriginNotAllowed:
+      description: El origen web no está autorizado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            requestId: 8f40c88d-f33f-45d7-ae41-b60c943f0d8f
+            code: origin_not_allowed
+            error: Origen no autorizado.
+    ProductNotFound:
+      description: El producto no existe en el catálogo público.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            requestId: 8f40c88d-f33f-45d7-ae41-b60c943f0d8f
+            code: product_not_found
+            error: Producto no encontrado.
+    PayloadTooLarge:
+      description: El cuerpo o la fotografía supera el máximo configurado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnsupportedMediaType:
+      description: El tipo de contenido de la solicitud o fotografía no está admitido.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    ShippingPolicy:
+      type: object
+      required: [minimumMinor, fuelPriceMinorPerLiter, fuelLitersPer100Km, laborMinorPerHour, serviceMinutes, marginBps, roundingMinor, quoteMinutes, holdMinutes]
+      properties:
+        minimumMinor: { type: integer, minimum: 1 }
+        fuelPriceMinorPerLiter: { type: integer, minimum: 1 }
+        fuelLitersPer100Km: { type: number, exclusiveMinimum: 0 }
+        laborMinorPerHour: { type: integer, minimum: 1 }
+        serviceMinutes: { type: number, minimum: 0 }
+        marginBps: { type: integer, minimum: 0, maximum: 9999 }
+        roundingMinor: { type: integer, minimum: 1 }
+        quoteMinutes: { type: integer, const: 5 }
+        holdMinutes: { type: integer, const: 15 }
+    ShippingQuote:
+      type: object
+      additionalProperties: false
+      required: [id, deliveryDate, priceMinor, normalPriceMinor, currency, expiresAt, mode]
+      properties:
+        id: { type: string }
+        deliveryDate: { type: string, format: date }
+        priceMinor: { type: integer, minimum: 1 }
+        normalPriceMinor: { type: integer, minimum: 1 }
+        currency: { type: string, const: UYU }
+        expiresAt: { type: string, format: date-time }
+        mode: { type: string, enum: [demo, live] }
+        promotionId: { type: string }
+    ShippingAuditEvent:
+      type: object
+      required: [id, merchantId, mode, actor, operation, entityType, entityId, createdAt, changes]
+      properties:
+        id: { type: string }
+        merchantId: { type: string }
+        mode: { type: string, enum: [demo, live] }
+        actor: { type: string, description: 'UUID Auth verificado, commerce-server, checkout-buyer o demo-buyer; demo-admin sólo en memoria demo.' }
+        operation: { type: string }
+        entityType: { type: string, enum: [rate_policy, product_price, promotion, service_day, shipment] }
+        entityId: { type: string }
+        createdAt: { type: string, format: date-time }
+        changes:
+          type: object
+          required: [before, after]
+          properties:
+            before: { type: object, description: Valores comerciales anteriores permitidos para esta entidad. }
+            after: { type: object, description: Valores comerciales nuevos permitidos para esta entidad. }
+    ShippingReservation:
+      type: object
+      required: [id, status, priceMinor, currency]
+      properties:
+        id: { type: string }
+        checkoutId: { type: string }
+        quoteId: { type: string }
+        status: { type: string, enum: [held, confirmed, cancelled, expired, completed] }
+        priceMinor: { type: integer, minimum: 1 }
+        normalPriceMinor: { type: integer, minimum: 1 }
+        currency: { type: string, const: UYU }
+        expiresAt: { type: string, format: date-time }
+        deliveryDate: { type: string, format: date }
+        mode: { type: string, enum: [demo, live] }
+        demo: { type: boolean }
+        cancellationReason: { type: string, minLength: 3, maxLength: 300 }
+        cancelledBy: { type: string, description: Actor admin verificado de la primera cancelación. }
+        cancelledAt: { type: string, format: date-time }
+    Error:
+      type: object
+      additionalProperties: false
+      required: [requestId, code, error]
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        code:
+          type: string
+          minLength: 1
+        error:
+          type: string
+          minLength: 1
+    Health:
+      type: object
+      additionalProperties: false
+      required: [ok, service, capabilities]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        service:
+          type: string
+          const: TRY API
+        capabilities:
+          type: object
+          additionalProperties: false
+          required: [tryOn]
+          properties:
+            tryOn:
+              type: object
+              additionalProperties: false
+              required: [available]
+              properties:
+                available: { type: boolean }
+    Product:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - audience
+        - articleType
+        - category
+        - targetFit
+        - price
+        - currency
+        - color
+        - description
+        - eyebrow
+        - rating
+        - reviewCount
+        - sizes
+        - defaultSize
+        - garmentPhotoType
+        - garmentMeasurementsCm
+        - productImage
+        - lookImage
+        - editorialImage
+      properties:
+        id: { type: string }
+        name: { type: string }
+        audience: { type: string, example: adult-women }
+        articleType: { type: string, enum: [clothing, shoes] }
+        category: { type: string, example: tops }
+        targetFit: { type: string, example: oversized }
+        price: { type: number, minimum: 0 }
+        currency: { type: string, const: UYU }
+        color: { type: string }
+        description: { type: string }
+        eyebrow: { type: string }
+        rating: { type: number, minimum: 0, maximum: 5 }
+        reviewCount: { type: integer, minimum: 0 }
+        sizes:
+          type: array
+          minItems: 1
+          items: { type: string }
+        defaultSize: { type: string }
+        garmentPhotoType: { type: string }
+        garmentMeasurementsCm:
+          type: object
+          description: Medidas técnicas por talle, expresadas en centímetros.
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: number
+        productImage: { type: string }
+        lookImage: { type: string }
+        editorialImage: { type: string }
+    RecommendationRequest:
+      type: object
+      additionalProperties: false
+      required: [productId]
+      properties:
+        productId:
+          type: string
+          minLength: 1
+        heightCm:
+          type: number
+          minimum: 135
+          maximum: 220
+          description: Obligatoria para productos de ropa.
+        weightKg:
+          type: number
+          minimum: 35
+          maximum: 180
+          description: Obligatorio para productos de ropa.
+        footCm:
+          type: number
+          minimum: 20
+          maximum: 30
+          description: Obligatorio para productos de calzado.
+    Recommendation:
+      type: object
+      additionalProperties: false
+      required: [size, confidence, fit, metrics, explanation]
+      properties:
+        size: { type: string }
+        confidence: { type: string, enum: [estimated] }
+        fit: { type: string }
+        metrics:
+          type: object
+          additionalProperties: false
+          properties:
+            heightCm: { type: number }
+            weightKg: { type: number }
+            bmi: { type: number }
+            footCm: { type: number }
+        explanation: { type: string }
+    RecommendationResponse:
+      type: object
+      additionalProperties: false
+      required: [productId, articleType, targetFit, recommendation]
+      properties:
+        productId: { type: string }
+        articleType: { type: string, enum: [clothing, shoes] }
+        targetFit: { type: string }
+        recommendation:
+          $ref: '#/components/schemas/Recommendation'
+    TryOnRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - person
+        - productId
+        - size
+        - heightCm
+        - weightKg
+        - consent
+        - consentVersion
+      properties:
+        person:
+          type: string
+          format: binary
+          description: Fotografía PNG, JPEG o WebP de cuerpo completo; máximo configurado por el servicio.
+        productId:
+          type: string
+          minLength: 1
+        size:
+          type: string
+          description: Talle a representar; debe existir en el producto.
+        heightCm:
+          type: number
+          minimum: 135
+          maximum: 220
+        weightKg:
+          type: number
+          minimum: 35
+          maximum: 180
+        consent:
+          type: string
+          const: 'true'
+        consentVersion:
+          type: string
+          minLength: 1
+          maxLength: 128
+    TryOnResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, productId, size, targetFit, imageUrl]
+      properties:
+        requestId:
+          type: string
+          format: uuid
+        productId: { type: string }
+        size: { type: string }
+        targetFit: { type: string }
+        imageUrl:
+          type: string
+          description: Imagen generada como URL de datos.
