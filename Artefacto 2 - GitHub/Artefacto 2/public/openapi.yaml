@@ -344,8 +344,8 @@ paths:
   /api/v1/shipping/quotes:
     post:
       tags: [Shipping]
-      summary: Confirmar destino y consultar hasta tres fechas y tarifas UYU
-      description: Zones usa tarifa manual/mínimo/oferta por fecha sin distancias ni subsidios automáticos. Zonas sin tarifa no devuelven opciones. Distance conserva el motor de recorrido separado.
+      summary: Confirmar destino y consultar hasta cinco opciones de entrega y tarifas UYU
+      description: Incluye la próxima entrega disponible y la de menor precio, priorizando otros precios distintos y ordenando las opciones por fecha y horario. Cada consulta usa la configuración vigente del comercio. Zones usa tarifa manual, mínimo, reglas de agrupación y ofertas por fecha. Zonas sin tarifa no devuelven opciones. Distance conserva el motor de recorrido separado.
       requestBody:
         required: true
         content:
@@ -367,7 +367,7 @@ paths:
                 type: object
                 required: [quotes]
                 properties:
-                  quotes: { type: array, maxItems: 3, items: { $ref: '#/components/schemas/ShippingQuote' } }
+                  quotes: { type: array, maxItems: 5, items: { $ref: '#/components/schemas/ShippingQuote' } }
         default: { $ref: '#/components/responses/ShippingError' }
   /api/v1/shipping/reservations:
     post:
@@ -653,6 +653,18 @@ paths:
       responses:
         '201': { description: '{shipment}. Zona o dirección identificada; cupo y política comprobados atómicamente. No sustituye la dirección final de entrega.' }
         default: { $ref: '#/components/responses/ShippingError' }
+  /api/v1/shipping/admin/shipments/{id}/confirm:
+    parameters:
+      - $ref: '#/components/parameters/ShippingId'
+    post:
+      tags: [Shipping admin]
+      security: [{ AdminSession: [] }]
+      summary: Confirmar una reserva aceptada por el comercio desde TRAMO
+      description: Requiere sesión y membresía verificadas en cada operación. Conserva precio, fecha y cupo; registra al administrador. No procesa pagos. Una reserva confirmada se cuenta para nuevas cotizaciones de la misma zona y franja. Los reintentos no duplican pedidos; las reservas vencidas o canceladas no se reactivan.
+      requestBody: { $ref: '#/components/requestBodies/MerchantBody' }
+      responses:
+        '200': { description: '{shipment}. Confirmación idempotente de una reserva vigente.' }
+        default: { $ref: '#/components/responses/ShippingError' }
   /api/v1/shipping/admin/shipments/{id}:
     parameters:
       - $ref: '#/components/parameters/ShippingId'
@@ -672,7 +684,7 @@ components:
     MerchantServer:
       type: http
       scheme: bearer
-      description: SHIPPING_MERCHANT_API_KEY ligada exclusivamente a SHIPPING_MERCHANT_ID (por defecto marea), jamás disponible para el navegador. Obligatoria para checkout live y toda confirmación del comercio; checkout demo permite acceso anónimo.
+      description: SHIPPING_MERCHANT_API_KEY ligada exclusivamente a SHIPPING_MERCHANT_ID (por defecto marea), jamás disponible para el navegador. Obligatoria para checkout live y confirmación automática del servidor del comercio; TRAMO también permite confirmación manual con AdminSession. Checkout demo permite acceso anónimo.
   requestBodies:
     MerchantBody:
       required: true

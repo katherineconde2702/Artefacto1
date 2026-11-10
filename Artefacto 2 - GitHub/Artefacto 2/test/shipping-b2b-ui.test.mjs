@@ -2,6 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as admin from '../public/admin/admin.js';
 const response=data=>({ok:true,status:200,json:async()=>data});
+test('shipment actions offer confirmation only for an unexpired held reservation',()=>{
+ const now=Date.parse('2026-11-10T12:00:00Z'),shipment={id:'hold-1',status:'held',expiresAt:'2026-11-10T12:15:00Z'};
+ assert.equal(typeof admin.renderShipmentActions,'function');
+ assert.match(admin.renderShipmentActions(shipment,now),/data-confirm="hold-1"/);
+ for(const status of ['confirmed','cancelled','completed','expired'])assert.doesNotMatch(admin.renderShipmentActions({...shipment,status},now),/data-confirm=/);
+ assert.doesNotMatch(admin.renderShipmentActions(shipment,Date.parse(shipment.expiresAt)),/data-confirm=/);
+ assert.doesNotMatch(admin.renderShipmentActions({...shipment,expiresAt:'invalid'},now),/data-confirm=/);
+});
+test('shipment action identifiers and cancellation text are escaped as data',()=>{
+ const html=admin.renderShipmentActions({id:'a"<script>',status:'held',expiresAt:'2099-01-01T00:00:00Z'});
+ assert.match(html,/data-confirm="a&quot;&lt;script&gt;"/);assert.match(html,/data-cancel="a&quot;&lt;script&gt;"/);assert.doesNotMatch(html,/<script>/);
+ const cancelled=admin.renderShipmentActions({status:'cancelled',cancellationReason:'<script>why</script>'});
+ assert.match(cancelled,/&lt;script&gt;why&lt;\/script&gt;/);assert.doesNotMatch(cancelled,/<script>|data-cancel=/);
+});
 test('independent admin session scopes membership and every request to selected commerce',async()=>{
  const calls=[];const session=admin.createAdminSession(async(url,options)=>{calls.push({url,options});return response(url.includes('auth/v1')?{access_token:'private-token'}:{merchant:{id:'books'}});},{merchantId:'books',apiBase:'/api/v1/shipping'});
  await session.login({supabase:{url:'https://personal.supabase.co',publishableKey:'public'}},'admin@example.org','password');

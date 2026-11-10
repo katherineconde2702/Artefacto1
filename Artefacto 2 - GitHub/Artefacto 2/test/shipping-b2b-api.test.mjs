@@ -15,6 +15,67 @@ async function app(t,initial=createZoneDemoState()){
   return {request,token,repository,base};
 }
 const rule={areaId:'*',enabled:true,tiers:[{minOrders:1,type:'fixed',value:5000},{minOrders:2,type:'fixed',value:10000}]};
+async function buyerQuote(request,windowId){
+ const context=await request('/store/checkouts',{items:[{productId:'soft-knit-sweater',size:'M',quantity:1}]});assert.equal(context.status,201);
+ const contextToken=context.data.contextToken;
+ const address=await request('/addresses/resolve',{contextToken,areaId:'pocitos'});assert.equal(address.status,200);
+ const result=await request('/quotes',{contextToken,addressId:address.data.address.id,confirmed:true});assert.equal(result.status,200);
+ const quote=windowId?result.data.quotes.find(row=>row.windowId===windowId):result.data.quotes[0];assert.ok(quote);
+ return {contextToken,quote};
+}
+test('commerce admin confirms a held order so the next cart counts three confirmed orders exactly once',async t=>{
+ const {request,token,repository}=await app(t);const deliveryDate=(await repository.snapshot('marea','demo')).days[0].deliveryDate;
+ assert.equal((await request('/admin/delivery-windows',{window:{id:'am',deliveryDate,startTime:'10:00',endTime:'13:00',capacity:12,enabled:true}},token,'PUT')).status,200);
+ assert.equal((await request('/admin/discount-rules',{rule},token,'PUT')).status,200);
+ for(let index=0;index<2;index++)assert.equal((await request('/admin/shipments',{areaId:'pocitos',deliveryDate,windowId:'am',priceMinor:24900},token,'POST',{'Idempotency-Key':`confirmed-example-${index}`})).status,201);
+ const first=await buyerQuote(request,'am');assert.equal(first.quote.calculation.confirmedCount,2);
+ const held=await request('/reservations',{contextToken:first.contextToken,quoteId:first.quote.id},null,'POST',{'Idempotency-Key':'new-customer'});
+ assert.equal(held.status,201);assert.equal(held.data.reservation.status,'held');
+ assert.equal((await buyerQuote(request,'am')).quote.calculation.confirmedCount,2);
+ const path=`/admin/shipments/${held.data.reservation.id}/confirm`;
+ assert.equal((await request(path,{})).status,401);
+ assert.equal((await request(path,{merchantId:'another-store'},token)).status,403);
+ assert.equal((await request(path,{actorId:'forged',serverAuthorized:true,paid:true},token)).status,400);
+ const confirmed=await request(path,{},token);assert.equal(confirmed.status,200,JSON.stringify(confirmed.data));
+ assert.equal(confirmed.data.shipment.status,'confirmed');assert.equal(confirmed.data.shipment.priceMinor,14900);
+ assert.equal((await buyerQuote(request,'am')).quote.calculation.confirmedCount,3);
+ assert.equal((await request(path,{},token)).status,200);
+ const next=await buyerQuote(request,'am');assert.equal(next.quote.calculation.confirmedCount,3);assert.equal(next.quote.priceMinor,14900);
+ const audit=(await request('/admin/audit',undefined,token)).data.auditEvents.filter(event=>event.operation==='confirm'&&event.entityId===held.data.reservation.id);
+ assert.equal(audit.length,1);assert.equal(audit[0].actor,'demo-admin');assert.deepEqual(audit[0].changes,{before:{status:'held'},after:{status:'confirmed'}});
+});
+test('five shopper choices follow current TRAMO rules rates and windows while accepted reservations retain their price',async t=>{
+ const initial=createZoneDemoState(),deliveryDate=initial.days[0].deliveryDate;initial.days=[];initial.promotions=[];initial.discountRules=[rule];
+ initial.windows=Array.from({length:8},(_,index)=>({id:`w${index}`,deliveryDate,startTime:`${String(index+8).padStart(2,'0')}:00`,endTime:`${String(index+9).padStart(2,'0')}:00`,capacity:20,enabled:true,version:1}));
+ initial.routes=[{id:'late-route',windowId:'w6',deliveryDate,departureAt:`${deliveryDate}T14:00:00-03:00`,version:1,capacity:20,stops:[{shipmentId:'seed-a',placeId:'zone:pocitos',status:'confirmed',priceMinor:24900},{shipmentId:'seed-b',placeId:'zone:pocitos',status:'confirmed',priceMinor:24900}]}];
+ const {request,token,repository}=await app(t,initial);
+ async function cartOptions(){const result=await request('/store/checkouts',{items:[{productId:'soft-knit-sweater',size:'M',quantity:1}]});const contextToken=result.data.contextToken;const address=(await request('/addresses/resolve',{contextToken,areaId:'pocitos'})).data.address;
+  const quotes=await request('/quotes',{contextToken,addressId:address.id,confirmed:true});assert.equal(quotes.status,200);assert.equal(quotes.data.quotes.length,5);return {contextToken,quotes:quotes.data.quotes};}
+ const first=await cartOptions();assert.deepEqual(first.quotes.map(row=>row.windowId),['w0','w1','w2','w3','w6']);
+ const cheapest=first.quotes.find(row=>row.windowId==='w6');assert.equal(cheapest.priceMinor,14900);
+ const body={contextToken:first.contextToken,quoteId:cheapest.id},headers={'Idempotency-Key':'accepted-before-tramo-update'};
+ const held=await request('/reservations',body,null,'POST',headers);assert.equal(held.status,201);
+ assert.equal((await request('/admin/discount-rules',{rule:{...rule,tiers:[{minOrders:3,type:'fixed',value:10000}]}},token,'PUT')).status,200);
+ const changedRules=await cartOptions();assert.deepEqual(changedRules.quotes.map(row=>row.windowId),['w0','w1','w2','w3','w4']);assert.ok(changedRules.quotes.every(row=>row.priceMinor===24900));
+ assert.equal((await request('/admin/zone-rates',{areaId:'pocitos',priceMinor:29900,enabled:true},token,'PUT')).status,200);
+ assert.ok((await cartOptions()).quotes.every(row=>row.priceMinor===29900));
+ assert.equal((await request('/admin/delivery-windows',{window:{...initial.windows[0],enabled:false}},token,'PUT')).status,200);
+ const closed=await cartOptions();assert.ok(closed.quotes.every(row=>row.windowId!=='w0'));assert.equal(closed.quotes[0].windowId,'w1');
+ assert.equal((await request('/reservations',body,null,'POST',headers)).data.reservation.priceMinor,14900);
+ assert.equal((await repository.snapshot('marea','demo')).shipments.find(row=>row.id===held.data.reservation.id).priceMinor,14900);
+});
+test('admin confirmation cannot revive cancelled or expired reservations',async t=>{
+ const {request,token}=await app(t);
+ const first=await buyerQuote(request);const cancelled=await request('/reservations',{contextToken:first.contextToken,quoteId:first.quote.id},null,'POST',{'Idempotency-Key':'cancel-before-confirm'});assert.equal(cancelled.status,201);
+ const cancelledId=cancelled.data.reservation.id;
+ assert.equal((await request(`/admin/shipments/${cancelledId}`,{status:'cancelled',reason:'Pedido cancelado'},token,'PATCH')).status,200);
+ assert.equal((await request(`/admin/shipments/${cancelledId}/confirm`,{},token)).status,409);
+ const second=await buyerQuote(request);const expiring=await request('/reservations',{contextToken:second.contextToken,quoteId:second.quote.id},null,'POST',{'Idempotency-Key':'expire-before-confirm'});assert.equal(expiring.status,201);
+ const clock=Date.now;try{Date.now=()=>Date.parse(expiring.data.reservation.expiresAt)+1;
+  assert.equal((await request(`/admin/shipments/${expiring.data.reservation.id}/confirm`,{},token)).status,410);
+ }finally{Date.now=clock;}
+ assert.equal((await request('/admin/shipments/missing/confirm',{},token)).status,404);
+});
 test('independent portal bootstraps auth without a store catalog and scopes admin requests',async t=>{
   const {request,token}=await app(t);const config=await request('/portal-config');assert.equal(config.status,200);assert.equal(config.data.product,'TRAMO');assert.equal(config.data.demoMerchantId,'marea');assert.equal(config.data.merchant,undefined);
   assert.equal((await request('/admin/discount-rules?merchantId=marea')).status,401);

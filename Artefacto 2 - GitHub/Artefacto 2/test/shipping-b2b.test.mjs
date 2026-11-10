@@ -6,6 +6,20 @@ const rules=await import('../public/shipping-admin/rules.js').catch(()=>({}));
 const rule={areaId:'*',enabled:true,tiers:[{minOrders:1,type:'fixed',value:5000},{minOrders:2,type:'fixed',value:10000}]};
 const now=new Date('2099-01-01T12:00:00Z');
 const address={...resolveZone('pocitos'),confirmed:true};
+test('shopper gets at most five chronological choices including the nearest and a later cheapest delivery',()=>{
+ const candidates=[24900,21900,18900,22900,23900,24900,14900,24900].map((priceMinor,index)=>({id:`day-${index+1}`,deliveryDate:`2099-01-${String(index+2).padStart(2,'0')}`,windowStart:'10:00',priceMinor}));
+ const shuffled=[...candidates].reverse(),before=structuredClone(shuffled);
+ assert.equal(typeof rules.selectDeliveryOptions,'function');
+ assert.deepEqual(rules.selectDeliveryOptions(shuffled).map(row=>row.id),['day-1','day-2','day-3','day-4','day-7']);
+ assert.deepEqual(shuffled,before);
+ assert.deepEqual(rules.selectDeliveryOptions([]),[]);
+ assert.deepEqual(rules.selectDeliveryOptions(candidates.slice(0,3)),candidates.slice(0,3));
+ const ties=candidates.map(row=>({...row,priceMinor:24900}));
+ assert.deepEqual(rules.selectDeliveryOptions(ties).map(row=>row.id),['day-1','day-2','day-3','day-4','day-5']);
+ const varied=[24900,24900,24900,24900,24900,21900,24900,18900,24900,14900].map((priceMinor,index)=>({id:`varied-${index}`,deliveryDate:`2099-02-${String(index+1).padStart(2,'0')}`,priceMinor}));
+ const choices=rules.selectDeliveryOptions(varied);assert.equal(choices.length,5);assert.equal(choices[0].id,'varied-0');
+ assert.deepEqual([...new Set(choices.map(row=>row.priceMinor))].sort((a,b)=>a-b),[14900,18900,21900,24900]);
+});
 function fixture(){const state=createZoneDemoState(now);state.policy.minimumMinor=14900;state.days=[];state.windows=[{id:'morning',deliveryDate:'2099-01-02',startTime:'10:00',endTime:'13:00',capacity:3,enabled:true,version:1},{id:'afternoon',deliveryDate:'2099-01-02',startTime:'14:00',endTime:'18:00',capacity:3,enabled:true,version:1}];state.discountRules=[rule];return state;}
 
 test('confirmed matching orders select one configurable tier and never undercut minimum',()=>{
@@ -69,7 +83,10 @@ test('last window place cannot be oversold and accepted price survives policy ed
 test('explicit B2B demo presets show real grouping differences without injecting live data',async()=>{
  const module=await import('../src/shipping/zones.mjs');assert.equal(typeof module.createB2BDemoState,'function');
  const state=module.createB2BDemoState(now);const options=await buildZoneOptions({state,address,now});
- assert.equal(state.mode,'demo');assert.equal(state.windows.length,6);assert.ok(options.some(row=>row.priceMinor===24900));assert.ok(options.some(row=>row.priceMinor===19900));assert.ok(options.some(row=>row.priceMinor===14900));assert.ok(state.shipments.every(row=>row.demo===true));
+ assert.equal(state.mode,'demo');assert.equal(state.windows.length,6);
+ for(const price of [24900,21900,18900,14900])assert.ok(options.some(row=>row.priceMinor===price),`Missing example price ${price}`);
+ for(const count of [0,3,5,15])assert.ok(options.some(row=>row.calculation.confirmedCount===count),`Missing example demand ${count}`);
+ assert.ok(state.shipments.every(row=>row.demo===true));assert.ok(state.routes.every(route=>route.stops.length<route.capacity));
 });
 test('withdrawing a manual offer invalidates unaccepted quotes while preserving an accepted replay',async()=>{
  const state=fixture();state.promotions=[{id:'offer',areaId:'pocitos',deliveryDate:'2099-01-02',priceMinor:14900,active:true,version:1}];const repository=createMemoryRepository(state),scope={merchantId:'marea',mode:'demo'};

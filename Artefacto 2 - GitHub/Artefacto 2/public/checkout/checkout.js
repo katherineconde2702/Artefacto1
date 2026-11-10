@@ -112,7 +112,7 @@ async function initializeCheckout() {
       const snapshot=hold.accept(received,{version:current,contextToken:token,quote});if(!snapshot)return;
       reservation=received;widget.inert=true;widget.closest('.panel').hidden=true;
       const element=$('#reservation');element.hidden=false;
-      element.innerHTML=`<strong>Tu envío está reservado.</strong><p>Entrega: ${escapeHTML(deliveryLabel(quote))}</p><p class="hint">Reserva ${escapeHTML(reservation.id)}${reservation.expiresAt?' · Vence '+escapeHTML(new Date(reservation.expiresAt).toLocaleTimeString('es-UY')):''}</p>${quote.mode==='demo'?'<p class="demo-note">Demo local · Sin pago ni entrega real.</p><button id="demo-confirm" class="secondary wide">Confirmar pedido demo, sin pago</button>':'<p>La reserva todavía no es una compra confirmada. El comercio debe confirmar tu pedido.</p>'}`;
+      element.innerHTML=`<strong>Tu envío está reservado.</strong><p>Entrega: ${escapeHTML(deliveryLabel(quote))}</p><p class="hint">Reserva ${escapeHTML(reservation.id)}${reservation.expiresAt?' · Vence '+escapeHTML(new Date(reservation.expiresAt).toLocaleTimeString('es-UY')):''}</p>${quote.mode==='demo'?'<p class="demo-note">Demo local · Sin pago ni entrega real.</p><button id="demo-confirm" class="secondary wide">Confirmar pedido demo, sin pago</button>':'<p>Tu reserva ocupa un cupo durante 15 minutos. Se suma a los pedidos para descuentos por agrupación cuando el comercio confirma el pedido.</p>'}`;
       status('Cupo reservado. No se realizó ningún cobro.');
       $('#demo-confirm')?.addEventListener('click',async(event)=>{
         if(hold.current!==snapshot)return;

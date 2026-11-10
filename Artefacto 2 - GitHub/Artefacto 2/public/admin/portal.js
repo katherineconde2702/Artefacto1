@@ -1,5 +1,5 @@
 import {SHIPPING_API,requestJSON,formatUYU,parseUYU,escapeHTML,ZoneSelection,renderZoneSelector} from '../widget/shipping-widget.js';
-import {createAdminSession,parseZoneRate,parseZonePolicy,parseDiscountForm,renderPriceExplanation,renderAuditHistory,shipmentDestination,createExternalShipmentIntent,parseServiceDay,refreshAdminState} from './admin.js';
+import {createAdminSession,parseZoneRate,parseZonePolicy,parseDiscountForm,renderPriceExplanation,renderAuditHistory,shipmentDestination,renderShipmentActions,createExternalShipmentIntent,parseServiceDay,refreshAdminState} from './admin.js';
 import {calculateZonePrice,validateDeliveryWindow} from '../shipping-admin/rules.js';
 
 const $=selector=>document.querySelector(selector),esc=escapeHTML;
@@ -72,7 +72,8 @@ function renderOffers(){
 }
 function renderShipments(){
  const names={held:'Reservado',confirmed:'Confirmado',cancelled:'Cancelado',expired:'Vencido',completed:'Completado'};
- $('#portal-shipment-list').innerHTML=table(['Destino / pedido','Fecha y franja','Importe','Estado',''],[...state.shipments].reverse().map(shipment=>`<tr><td>${esc(shipmentDestination(shipment))}<br><small>${esc(shipment.externalOrderRef||shipment.id)}</small></td><td>${esc(shipment.deliveryDate||'—')}${shipment.windowStart?`<br>${esc(shipment.windowStart)}–${esc(shipment.windowEnd)}`:''}</td><td>${formatUYU(shipment.priceMinor)}</td><td>${esc(names[shipment.status]||shipment.status)}</td><td>${['held','confirmed'].includes(shipment.status)?`<form class="cancel-form" data-cancel="${esc(shipment.id)}"><input name="reason" placeholder="Motivo" aria-label="Motivo de cancelación" minlength="3" maxlength="300" required><button class="quiet">Cancelar</button></form>`:esc(shipment.cancellationReason||'—')}</td></tr>`),'Todavía no hay envíos.');
+ $('#portal-shipment-list').innerHTML=table(['Destino / pedido','Fecha y franja','Importe','Estado','Acciones'],[...state.shipments].reverse().map(shipment=>`<tr><td>${esc(shipmentDestination(shipment))}<br><small>${esc(shipment.externalOrderRef||shipment.id)}</small></td><td>${esc(shipment.deliveryDate||'—')}${shipment.windowStart?`<br>${esc(shipment.windowStart)}–${esc(shipment.windowEnd)}`:''}</td><td>${formatUYU(shipment.priceMinor)}</td><td>${esc(names[shipment.status]||shipment.status)}</td><td>${renderShipmentActions(shipment)}</td></tr>`),'Todavía no hay envíos.');
+ $('#portal-shipment-list').querySelectorAll('[data-confirm]').forEach(button=>button.addEventListener('click',()=>save(`/shipments/${encodeURIComponent(button.dataset.confirm)}/confirm`,'POST',{})));
  $('#portal-shipment-list').querySelectorAll('[data-cancel]').forEach(form=>form.addEventListener('submit',event=>{event.preventDefault();save(`/shipments/${encodeURIComponent(form.dataset.cancel)}`,'PATCH',{status:'cancelled',reason:form.elements.reason.value.trim()});}));
 }
 function renderActivity(){

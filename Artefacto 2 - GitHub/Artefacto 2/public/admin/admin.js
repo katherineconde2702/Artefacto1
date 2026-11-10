@@ -22,6 +22,12 @@ export function shipmentDestination(shipment) {
   return shipment.address?.formattedAddress || shipment.address?.inputAddress || shipment.label || shipment.inputAddress || 'Destino no informado';
 }
 
+export function renderShipmentActions(shipment,now=Date.now()) {
+  const esc=escapeHTML,id=esc(shipment.id),canConfirm=shipment.status==='held'&&Date.parse(shipment.expiresAt)>now;
+  if(!['held','confirmed'].includes(shipment.status))return esc(shipment.cancellationReason||'—');
+  return `<div class="shipment-actions">${canConfirm?`<button type="button" class="secondary" data-confirm="${id}">Confirmar pedido</button>`:''}<form class="cancel-form" data-cancel="${id}"><input name="reason" placeholder="Motivo" aria-label="Motivo de cancelación" minlength="3" maxlength="300" required><button class="quiet">Cancelar</button></form></div>`;
+}
+
 export function renderAuditHistory(events = [],areas=[]) {
   const esc=escapeHTML;
   const operations={zone_rate_save:'Tarifa de zona actualizada',settings_save:'Costos actualizados',promotion_save:'Oferta actualizada',service_day_save:'Día de servicio actualizado',external_create:'Entrega externa creada',reserve:'Reserva creada',confirm:'Envío confirmado',demo_confirm:'Envío demo confirmado',cancel:'Envío cancelado',discount_rule_save:'Descuentos actualizados',delivery_window_save:'Franja actualizada'};

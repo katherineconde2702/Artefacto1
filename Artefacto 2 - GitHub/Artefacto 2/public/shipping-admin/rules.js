@@ -3,6 +3,16 @@ const integer=(value,min,max)=>Number.isSafeInteger(value)&&value>=min&&value<=m
 const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
 const only=(value,keys)=>object(value)&&Object.keys(value).every(key=>keys.includes(key));
 const invalid=message=>{throw Error(message);};
+export function selectDeliveryOptions(options){
+  const chronological=(a,b)=>String(a.deliveryDate||'').localeCompare(String(b.deliveryDate||''))||String(a.windowStart||'').localeCompare(String(b.windowStart||''));
+  const ordered=[...options].sort(chronological);
+  if(ordered.length<=5)return ordered;
+  const cheapest=ordered.reduce((best,row)=>row.priceMinor<best.priceMinor?row:best),selected=new Set([ordered[0],cheapest]);
+  const prices=new Set([...selected].map(row=>row.priceMinor));
+  for(const row of ordered){if(selected.size===5)break;if(!prices.has(row.priceMinor)){selected.add(row);prices.add(row.priceMinor);}}
+  for(const row of ordered){if(selected.size===5)break;selected.add(row);}
+  return [...selected].sort(chronological);
+}
 export function validateDiscountRule(rule){
   if(!only(rule,['areaId','enabled','tiers','version'])||typeof rule.areaId!=='string'||!/^([a-z0-9_-]{1,80}|\*)$/.test(rule.areaId)||typeof rule.enabled!=='boolean'||!Array.isArray(rule.tiers)||rule.tiers.length>20||(rule.enabled&&!rule.tiers.length))invalid('Configurá entre 1 y 20 escalones para una regla activa.');
   const seen=new Set();
