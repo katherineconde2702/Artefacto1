@@ -77,9 +77,9 @@
     <section data-page="zones" hidden>
      <div class="page-heading"><div><h1>Zonas y tarifas</h1><p>Cobertura y precios de envío en pesos uruguayos.</p></div><span class="currency-label">Moneda <strong>UYU</strong></span></div>
      <div class="settings-layout">
-      <article class="card table-card"><div class="card-heading"><h2>Cobertura</h2><label class="search-label"><span class="sr-only">Buscar zona</span><input id="zone-search" type="search" placeholder="Buscar barrio o departamento"></label></div><div id="portal-rate-list" class="table-wrap scroll-table"></div></article>
+      <article class="card tariff-map-card"><div class="card-heading"><div><h2>Mapa de tarifas</h2><p class="field-help">Explorá la cobertura y elegí dónde editar.</p></div></div><div id="portal-rate-map"></div></article>
       <div class="editor-stack">
-       <article class="card"><div class="card-heading"><h2>Tarifa de zona</h2></div><form id="portal-zone-form"><div data-zone-selector="rate"></div><label>Precio de envío <span class="field-unit">UYU</span><input name="price" inputmode="decimal" required placeholder="249,00"></label><label class="switch"><input name="enabled" type="checkbox"><span>Zona habilitada</span></label><div class="form-footer"><button class="primary">Guardar tarifa</button></div></form></article>
+       <article class="card"><div class="card-heading"><h2 id="zone-form-title">Tarifa de zona</h2></div><form id="portal-zone-form"><div data-zone-selector="rate"></div><label>Precio de envío <span class="field-unit">UYU</span><input name="price" inputmode="decimal" required placeholder="249,00"></label><label class="switch"><input name="enabled" type="checkbox"><span>Zona habilitada</span></label><div class="form-footer"><button class="primary">Guardar tarifa</button></div></form></article>
        <article class="card"><div class="card-heading"><h2>Mínimo de envío</h2></div><form id="portal-minimum-form"><label>Importe mínimo <span class="field-unit">UYU</span><input name="minimum" inputmode="decimal" required></label><div class="form-footer"><button class="secondary">Guardar mínimo</button></div></form><p class="field-help">Ningún descuento puede reducir el envío por debajo de este importe.</p></article>
       </div>
      </div>
@@ -87,7 +87,7 @@
     <section data-page="discounts" hidden>
      <div class="page-heading"><div><h1>Descuentos</h1><p>Reglas por cantidad de pedidos confirmados en la misma zona y franja.</p></div></div>
      <div class="rules-layout">
-      <article class="card"><div class="card-heading"><h2>Configurar regla</h2></div><form id="portal-rule-form">
+      <article class="card" id="rule-editor"><div class="card-heading"><h2 id="rule-form-title">Configurar regla</h2></div><form id="portal-rule-form">
        <div class="rule-scope"><label>Aplicar a<select name="areaId" id="rule-scope"></select></label><label class="switch"><input name="enabled" type="checkbox"><span>Regla activa</span></label></div>
        <p id="rule-inheritance" class="field-help rule-hint"></p>
        <div class="tier-toolbar"><label>Cantidad de escalones<input id="tier-count" type="number" min="0" max="20" value="2"></label><button id="add-tier" class="secondary" type="button">+ Agregar escalón</button></div>
@@ -114,7 +114,7 @@
     <section data-page="offers" hidden>
      <div class="page-heading"><div><h1>Promociones</h1><p>Precio especial de envío para una zona y fecha.</p></div></div>
      <div class="settings-layout"><article class="card table-card"><div class="card-heading"><h2>Promociones guardadas</h2></div><div id="portal-offer-list" class="table-wrap"></div></article>
-      <article class="card editor-card"><div class="card-heading"><h2>Configurar promoción</h2><button id="new-offer" type="button" class="quiet">Limpiar</button></div><form id="portal-offer-form"><input name="id" type="hidden"><div data-zone-selector="offer"></div><label>Fecha<input name="deliveryDate" type="date" required></label><label>Precio final del envío <span class="field-unit">UYU</span><input name="price" inputmode="decimal" required></label><label class="switch"><input name="active" type="checkbox" checked><span>Promoción activa</span></label><div class="form-footer"><button class="primary">Guardar promoción</button></div></form><p class="field-help">Se compara con el descuento automático. Los descuentos no se acumulan.</p></article>
+      <article class="card editor-card"><div class="card-heading"><h2 id="offer-form-title">Nueva promoción</h2><button id="new-offer" type="button" class="quiet">Limpiar</button></div><form id="portal-offer-form"><input name="id" type="hidden"><div data-zone-selector="offer"></div><label>Fecha<input name="deliveryDate" type="date" required></label><label>Precio final del envío <span class="field-unit">UYU</span><input name="price" inputmode="decimal" required></label><label class="switch"><input name="active" type="checkbox" checked><span>Promoción activa</span></label><div class="form-footer"><button class="primary">Guardar promoción</button></div></form><p class="field-help">Se compara con el descuento automático. Los descuentos no se acumulan.</p></article>
      </div>
     </section>
     <section data-page="shipments" hidden>

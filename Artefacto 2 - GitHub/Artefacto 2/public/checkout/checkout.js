@@ -56,7 +56,7 @@ export class ReservationHold {
 
 async function initializeCheckout() {
   const cart = mountBagCount(); const $ = (selector) => document.querySelector(selector); const widget=$('shipping-widget');
-  let context = null; let selected = null; let version = 0; let selectionRevision = 0; let reserving = false; let reservation = null;
+  let context = null; let selected = null; let version = 0; let selectionRevision = 0; let reserving = false; let reservation = null;let quantityTimer=null;
   const status = (text,error=false)=>{ $('#checkout-status').textContent=text; $('#checkout-status').className=`status ${error?'error':''}`; };
   const hold = new ReservationHold({onExpire:(snapshot)=>{
     if(snapshot.version!==version)return;
@@ -77,12 +77,18 @@ async function initializeCheckout() {
       const price=line?.lineTotalMinor ?? (Number.isSafeInteger(line?.unitPriceMinor)?line.unitPriceMinor*item.quantity:null);
       return `<article class="line-item"><img src="${escapeHTML(product?.productImage || '/assets/garment-set.png')}" alt="${escapeHTML(product?.name || 'Prenda MAREA')}"><div><h3>${escapeHTML(product?.name || item.productId)}</h3><span class="hint">Talle ${escapeHTML(item.size)}${price!==null?' · '+formatUYU(price):''}</span><div class="line-controls"><label>Cantidad <input data-key="${escapeHTML(item.key)}" type="number" min="0" max="99" step="1" value="${item.quantity}" aria-label="Cantidad de ${escapeHTML(product?.name || item.productId)} talle ${escapeHTML(item.size)}"></label><button class="text-button" data-remove="${escapeHTML(item.key)}" type="button">Quitar</button></div></div></article>`;
     }).join('');
-    $('#cart-lines').querySelectorAll('[data-key]').forEach((input)=>input.addEventListener('change',()=>{try{cart.update(input.dataset.key,Number(input.value));refresh();}catch(error){status(error.message,true);input.value=cart.items().find((line)=>line.key===input.dataset.key)?.quantity || 0;}}));
+    $('#cart-lines').querySelectorAll('[data-key]').forEach(input=>{
+      const commit=()=>{clearTimeout(quantityTimer);if(!input.isConnected)return;try{if(input.value==='')throw Error('Ingresá una cantidad entre 0 y 99.');cart.update(input.dataset.key,Number(input.value));refresh();}catch(error){status(error.message,true);input.value=cart.items().find(line=>line.key===input.dataset.key)?.quantity||0;widget.setContext(context?.contextToken||'');}};
+      input.addEventListener('change',commit);
+      input.addEventListener('input',()=>{clearTimeout(quantityTimer);widget.setContext('');invalidate();status('Actualizando tu bolsa y sus precios…');if(input.value!==''&&input.validity.valid)quantityTimer=setTimeout(commit,250);});
+    });
     $('#cart-lines').querySelectorAll('[data-remove]').forEach((button)=>button.addEventListener('click',()=>{cart.update(button.dataset.remove,0);refresh();}));
   }
   async function refresh() {
+    clearTimeout(quantityTimer);
     hold.reset();
     const current=++version; context=null; reservation=null; reserving=false; widget.inert=false;widget.closest('.panel').hidden=false; widget.setContext(''); invalidate(); $('#reservation').hidden=true;
+    $('#reserve').hidden=false;
     const items=cart.items(); mountBagCount(cart); $('#empty').hidden=items.length>0; $('#checkout-content').hidden=!items.length;
     if (!items.length) { status(''); return; }
     status('Verificando tu selección y sus precios…');
@@ -120,7 +126,7 @@ async function initializeCheckout() {
         status('Confirmando el pedido demo…');
         const result=await hold.confirmRequest(snapshot,(id,contextToken)=>requestJSON(`${SHIPPING_API}/reservations/${encodeURIComponent(id)}/demo-confirm`,{method:'POST',body:JSON.stringify({contextToken})}),()=>{
           if(current!==version)return;
-          cart.clear();mountBagCount(cart);element.innerHTML='<strong>Pedido demo confirmado.</strong><p>No se realizó ningún cobro. Los datos son temporales y no se hará una entrega real.</p><a href="/" class="secondary">Volver a MAREA</a>';status('Confirmación demo completada.');
+          cart.clear();mountBagCount(cart);$('#cart-lines').querySelectorAll('.line-controls').forEach(controls=>{controls.textContent=`Cantidad: ${controls.querySelector('input').value}`;});$('#reserve').hidden=true;$('#delivery-choice').textContent='Pedido demo confirmado.';element.innerHTML='<strong>Pedido demo confirmado.</strong><p>No se realizó ningún cobro. Los datos son temporales y no se hará una entrega real.</p><a href="/" class="secondary">Volver a MAREA</a>';status('Confirmación demo completada.');
         });
         if(result.status==='uncertain'&&current===version&&hold.current===snapshot){
           status('No pudimos verificar la respuesta. El pedido puede haberse confirmado. Reintentá esta misma confirmación para comprobar su estado.',true);

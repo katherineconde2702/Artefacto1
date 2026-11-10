@@ -37,9 +37,9 @@ export function renderZoneSelector(selection,prefix='destination',{allowUnavaila
 }
 export class ShippingSession {
   constructor(request = (path, body, options = {}) => requestJSON(`${SHIPPING_API}${path}`, {...options,method:'POST', body:JSON.stringify(body)})) {
-    this.request = request; this.version = 0; this.contextToken = ''; this.address = null; this.quotes = []; this.selected = null;
+    this.request = request; this.version = 0; this.contextToken = ''; this.address = null; this.quotes = []; this.selected = null;this.quoted=false;
   }
-  invalidateAddress() { this.version++; this.address = null; this.quotes = []; this.selected = null; this.reservationIntent = null; }
+  invalidateAddress() { this.version++; this.address = null; this.quotes = []; this.selected = null; this.reservationIntent = null;this.quoted=false; }
   setContext(token) { this.invalidateAddress(); this.contextToken = token || ''; }
   async resolve(inputAddress) {
     this.invalidateAddress(); const version = this.version;
@@ -51,10 +51,10 @@ export class ShippingSession {
   }
   async loadQuotes() {
     if (!this.address?.id || !this.contextToken) throw new Error('Confirmá primero tu destino.');
-    const version = ++this.version; this.quotes = []; this.selected = null; this.reservationIntent = null;
+    const version = ++this.version; this.quotes = []; this.selected = null; this.reservationIntent = null;this.quoted=false;
     const result = await this.request('/quotes', {contextToken:this.contextToken,addressId:this.address.id,confirmed:true});
     if (version !== this.version) return false;
-    this.quotes = validateQuotes(result.quotes); return true;
+    this.quotes = validateQuotes(result.quotes);this.quoted=true; return true;
   }
   select(id) {
     const quote = this.quotes.find((item) => item.id === id);
@@ -140,8 +140,8 @@ if (globalThis.HTMLElement && globalThis.customElements && !customElements.get('
       <form>${zonesMode?renderZoneSelector(this.zoneSelection):`<label for="destination">Dirección de entrega en Montevideo</label><input id="destination" name="destination" type="text" autocomplete="street-address" required minlength="5" maxlength="300" value="${esc(this.inputAddress)}" placeholder="Calle, número y barrio">`}
       <p class="note" id="destination-use">${zonesMode?'Elegí tu zona de Uruguay. Sólo la enviaremos al consultar. La zona no sustituye una dirección completa de entrega.':this.config.mode === 'demo' ? 'Al buscar, usaremos esta dirección sólo en la simulación local.' : 'Al buscar, consultaremos esta dirección con Google Maps para calcular el envío.'}</p>
       <button type="submit" aria-describedby="destination-use" ${this.busy ? 'disabled' : ''}>${zonesMode?'Consultar destino':'Buscar destino'}</button></form>
-      ${address ? `<div class="address"><p class="note">${zonesMode?'Revisá la zona antes de continuar':'Revisá la dirección antes de continuar'}</p><p><strong>${esc(address.formattedAddress)}</strong>${this.config.mode === 'live' && address.provider === 'google' ? '<br><span class="google-attribution" translate="no">Google Maps</span>' : ''}</p><button id="confirm" type="button" ${this.busy ? 'disabled' : ''}>${zonesMode?'Confirmar zona y ver días':'Confirmar destino y ver días'}</button></div>` : ''}
-      ${quotes.length ? `<fieldset class="options"><legend>Elegí tu día y horario</legend>${quotes.map((quote) => `<label class="option"><input type="radio" name="delivery" value="${esc(quote.id)}" ${selected?.id === quote.id ? 'checked' : ''}><span>${esc(quote.label || deliveryLabel(quote))}<br><small>${quote.windowStart?'Franja de entrega':esc(quote.deliveryDate)}${quote.promotionId ? ' · Oferta de zona' : ''}</small>${quote.calculation?.source==='grouping'?`<br><small>Ahorrás ${formatUYU(quote.calculation.discountMinor)} por agrupación · ${esc(quote.calculation.confirmedCount)} pedido(s) coincidentes confirmados</small>`:''}${quote.priceMinor === lowestPrice ? '<br><span class="lowest">Menor precio</span>' : ''}</span><strong>${quote.normalPriceMinor > quote.priceMinor ? `<del>${formatUYU(quote.normalPriceMinor)}</del><br>` : ''}${formatUYU(quote.priceMinor)}</strong></label>`).join('')}<p class="note">Precio válido por 5 minutos; el cupo se confirma al reservar. Los descuentos no se acumulan y respetan el mínimo del comercio.</p></fieldset>` : address && !this.busy ? '<p class="note">Las opciones aparecerán después de confirmar el destino. Si no hay cupos, probá más tarde.</p>' : ''}`}</section>`;
+      ${address ? `<div class="address"><p class="note">${zonesMode?'Revisá la zona antes de continuar':'Revisá la dirección antes de continuar'}</p><p><strong>${esc(address.formattedAddress)}</strong>${this.config.mode === 'live' && address.provider === 'google' ? '<br><span class="google-attribution" translate="no">Google Maps</span>' : ''}</p><button id="confirm" type="button" ${this.busy ? 'disabled' : ''}>${this.session.quoted?'Actualizar días y precios':zonesMode?'Confirmar zona y ver días':'Confirmar destino y ver días'}</button></div>` : ''}
+      ${quotes.length ? `<fieldset class="options"><legend>Elegí tu día y horario</legend>${quotes.map((quote) => `<label class="option"><input type="radio" name="delivery" value="${esc(quote.id)}" ${selected?.id === quote.id ? 'checked' : ''}><span>${esc(quote.label || deliveryLabel(quote))}<br><small>${quote.windowStart?'Franja de entrega':esc(quote.deliveryDate)}${quote.promotionId ? ' · Oferta de zona' : ''}</small>${quote.calculation?.source==='grouping'?`<br><small>Ahorrás ${formatUYU(quote.calculation.discountMinor)} por agrupación · ${esc(quote.calculation.confirmedCount)} pedido(s) coincidentes confirmados</small>`:''}${quote.priceMinor === lowestPrice ? '<br><span class="lowest">Menor precio</span>' : ''}</span><strong>${quote.normalPriceMinor > quote.priceMinor ? `<del>${formatUYU(quote.normalPriceMinor)}</del><br>` : ''}${formatUYU(quote.priceMinor)}</strong></label>`).join('')}<p class="note">Precio válido por 5 minutos; el cupo se confirma al reservar. Los descuentos no se acumulan y respetan el mínimo del comercio.</p></fieldset>` : address && !this.busy ? `<p class="note" role="status">${this.session.quoted?'No hay entregas disponibles para esta zona. Podés actualizar los días y precios o elegir otra zona.':'Confirmá el destino para ver los días y precios disponibles.'}</p>` : ''}`}</section>`;
       this.shadowRoot.querySelector('form')?.addEventListener('submit',(event)=>{ event.preventDefault(); if (this.busy) return;try{const destination=zonesMode?this.zoneSelection.destination():this.inputAddress;this.run(()=>this.session.resolve(destination));}catch(error){this.error=error.message;this.render();} });
       this.shadowRoot.querySelector('#destination-department')?.addEventListener('change',event=>this.zoneSelection.selectDepartment(event.target.value));
       this.shadowRoot.querySelector('#destination-area')?.addEventListener('change',event=>this.zoneSelection.selectArea(event.target.value));

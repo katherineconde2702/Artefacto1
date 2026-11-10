@@ -157,13 +157,14 @@
       *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
   </style>
+  <link rel="stylesheet" href="/store/navigation.css">
 </head>
 <body>
   <a class="skip-link" href="#collection">Saltar a la colección</a>
   <div class="announcement">Envíos en Uruguay según zona y día · Precios UYU</div>
   <header class="site-header">
     <nav aria-label="Navegación principal">
-      <button class="icon-button" type="button" aria-label="Abrir menú">☰</button>
+      <button class="icon-button" type="button" data-store-menu aria-label="Abrir menú">☰</button>
       <a href="#collection">Novedades</a>
       <a href="#collection">Prendas</a>
       <a href="#story">Nuestra filosofía</a>
@@ -171,7 +172,6 @@
     <a class="logo" href="./">MAREA<span>Essential wardrobe</span></a>
     <nav class="utilities" aria-label="Utilidades">
       <button class="icon-button search-toggle" type="button" aria-label="Buscar">⌕</button>
-      <button class="icon-button" type="button" aria-label="Mi cuenta">♙</button>
       <a class="icon-button" href="/checkout/" aria-label="Ir a tu bolsa">Bag <span class="bag-count">0</span></a>
     </nav>
   </header>
@@ -209,6 +209,7 @@
           <button class="filter" type="button" data-category="bottoms" aria-pressed="false">Bottoms</button>
           <button class="filter" type="button" data-category="dresses" aria-pressed="false">Vestidos</button>
           <button class="filter" type="button" data-category="outerwear" aria-pressed="false">Abrigos</button>
+          <button class="filter" type="button" data-category="saved" aria-pressed="false">Guardadas</button>
         </div>
         <label class="search"><span aria-hidden="true">⌕</span><input id="search-products" type="search" placeholder="Buscar en la colección" aria-label="Buscar prendas"></label>
       </div>
@@ -227,24 +228,27 @@
       <div class="story-image" role="img" aria-label="Conjunto MAREA en tonos naturales"></div>
       <div class="story-copy"><p class="eyebrow">Vestir mejor, elegir mejor</p><h2 id="story-title">Menos dudas entre vos y la prenda indicada</h2><p>Diseñamos cada pieza con una intención de calce clara. TRY suma una recomendación personalizada y una vista virtual para que puedas comparar talles con confianza.</p></div>
     </section>
+    <section class="materials-info" id="materials" aria-labelledby="materials-title"><h2 id="materials-title">Materiales y cuidado</h2><p>Conocé la textura, el diseño y las recomendaciones de cuidado en la página de cada prenda de nuestra colección.</p><a href="#collection">Ver las prendas</a></section>
   </main>
 
   <footer class="footer">
     <div class="footer-brand">MAREA<small>Esenciales contemporáneos, creados para acompañarte temporada tras temporada.</small></div>
     <div><h3>Comprar</h3><a href="#collection">Novedades</a><a href="#collection">Prendas</a><a href="#collection">Colección</a></div>
-    <div><h3>Ayuda</h3><a href="/checkout/">Bolsa y envíos</a><a href="/admin/">Admin</a><a href="/demo/">Guía de talles</a></div>
-    <div><h3>Nosotras</h3><a href="#story">Nuestra filosofía</a><a href="#">Materiales</a><a href="#">Contacto</a></div>
+    <div><h3>Ayuda</h3><a href="/checkout/">Bolsa y envíos</a><a href="/admin/">Admin</a><a href="/product/?id=soft-knit-sweater#try">Guía de talles</a></div>
+    <div><h3>Nosotras</h3><a href="#story">Nuestra filosofía</a><a href="#materials">Materiales y cuidado</a><a href="/?guardadas=1#collection">Prendas guardadas</a></div>
   </footer>
 
   <script type="module">
-    import { mountBagCount } from '/store/cart.js';
+    import '/store/navigation.js';
+    import { mountBagCount, createFavorites } from '/store/cart.js';
     import { formatProductPrice } from '/store/money.js';
     mountBagCount();
     const grid = document.querySelector('#product-grid');
     const filters = [...document.querySelectorAll('.filter')];
     const searchInput = document.querySelector('#search-products');
     let products = [];
-    let selectedCategory = 'all';
+    const favorites=createFavorites();
+    let selectedCategory = new URLSearchParams(location.search).has('guardadas')?'saved':'all';
 
     const normalizeProducts = (payload) => {
       const list = Array.isArray(payload) ? payload : payload.products || payload.items || [];
@@ -260,6 +264,7 @@
     const productImage = (product) => product.catalogImage || product.editorialImage || product.productImage || '/assets/garment-set.png';
     const formatCategory = (category = '') => ({ tops: 'Tops', bottoms: 'Bottoms', dresses: 'Vestidos', outerwear: 'Abrigos', shoes: 'Calzado' }[category] || category);
     const formatFit = (fit = '') => ({ oversized: 'Oversized', slim: 'Slim', regular: 'Regular', relaxed: 'Relajado', fitted: 'Entallado', 'wide-leg': 'Pierna amplia' }[fit] || fit);
+    const normalizeSearch=value=>String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLocaleLowerCase('es');
 
     function productCard(product) {
       const name = escapeHtml(product.name || 'Prenda MAREA');
@@ -274,7 +279,7 @@
             <img src="${safeImageUrl(productImage(product))}" alt="${name} en color ${color}" loading="lazy">
             <span class="card-badge">Disponible con TRY</span>
           </a>
-          <button class="heart" type="button" aria-label="Guardar ${name}" aria-pressed="false">♡</button>
+          <button class="heart" type="button" data-save="${escapeHtml(product.id)}" aria-label="${favorites.has(product.id)?'Quitar de guardadas':'Guardar'} ${name}" aria-pressed="${favorites.has(product.id)}">${favorites.has(product.id)?'♥':'♡'}</button>
           <div class="card-content">
             <div class="card-meta"><h3>${name}</h3><span class="card-price">${price}</span></div>
             <div class="card-subline"><span>${category} · ${color}</span><span>Fit ${fit}</span></div>
@@ -284,18 +289,19 @@
     }
 
     function render() {
-      const term = searchInput.value.trim().toLocaleLowerCase('es');
+      const term = normalizeSearch(searchInput.value.trim());
       const visible = products.filter((product) => {
-        const inCategory = selectedCategory === 'all' || product.category === selectedCategory;
-        const haystack = `${product.name || ''} ${product.category || ''} ${product.color || ''}`.toLocaleLowerCase('es');
+        const inCategory = selectedCategory === 'all' || (selectedCategory==='saved'?favorites.has(product.id):product.category === selectedCategory);
+        const haystack = normalizeSearch(`${product.name || ''} ${product.category || ''} ${formatCategory(product.category)} ${product.color || ''} ${formatFit(product.targetFit)}`);
         return inCategory && haystack.includes(term);
       });
-      grid.innerHTML = visible.length ? visible.map(productCard).join('') : '<p class="empty">No encontramos prendas con esos filtros.</p>';
+      filters.forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.category===selectedCategory)));
+      document.querySelector('[data-category="saved"]').textContent=`Guardadas (${products.filter(product=>favorites.has(product.id)).length})`;
+      grid.innerHTML = visible.length ? visible.map(productCard).join('') : `<p class="empty">${selectedCategory==='saved'&&!term?'Todavía no guardaste prendas. Tocá el corazón de una prenda para encontrarla acá.':'No encontramos prendas con esos filtros.'}</p>`;
       grid.setAttribute('aria-busy', 'false');
       grid.querySelectorAll('.heart').forEach((button) => button.addEventListener('click', () => {
-        const active = button.getAttribute('aria-pressed') === 'true';
-        button.setAttribute('aria-pressed', String(!active));
-        button.textContent = active ? '♡' : '♥';
+        const id=button.dataset.save;favorites.toggle(id);render();
+        (grid.querySelector(`[data-save="${id}"]`)||document.querySelector('[data-category="saved"]')).focus({preventScroll:true});
       }));
     }
 
@@ -310,6 +316,8 @@
       window.setTimeout(() => searchInput.focus(), 450);
     });
 
+    async function loadCollection(){
+    grid.setAttribute('aria-busy','true');
     try {
       const response = await fetch('/api/v1/products', { headers: { Accept: 'application/json' } });
       const payload = await response.json();
@@ -317,10 +325,14 @@
       products = normalizeProducts(payload);
       if (!products.length) throw new Error('La colección todavía no tiene prendas disponibles.');
       render();
+      if(new URLSearchParams(location.search).has('buscar'))searchInput.focus();
     } catch (error) {
       grid.setAttribute('aria-busy', 'false');
-      grid.innerHTML = `<p class="empty">${escapeHtml(error.message)} Intentá nuevamente en unos instantes.</p>`;
+      grid.innerHTML = `<div class="empty"><p>${escapeHtml(error.message)}</p><button type="button" class="filter" id="retry-collection">Reintentar</button></div>`;
+      document.querySelector('#retry-collection').addEventListener('click',event=>{event.target.disabled=true;loadCollection();});
     }
+    }
+    loadCollection();
   </script>
 </body>
 </html>

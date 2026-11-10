@@ -141,21 +141,21 @@
       *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
   </style>
+  <link rel="stylesheet" href="/store/navigation.css">
 </head>
 <body>
   <a class="skip-link" href="#product-view">Saltar al producto</a>
   <div class="announcement">Envíos en Uruguay según zona y día · Precios UYU</div>
   <header class="site-header">
     <nav aria-label="Navegación principal">
-      <button class="icon-button" type="button" aria-label="Abrir menú">☰</button>
+      <button class="icon-button" type="button" data-store-menu aria-label="Abrir menú">☰</button>
       <a href="../#collection">Novedades</a>
       <a href="../#collection">Prendas</a>
       <a href="../#story">Nuestra filosofía</a>
     </nav>
     <a class="logo" href="../">MAREA<span>Essential wardrobe</span></a>
     <nav class="utilities" aria-label="Utilidades">
-      <a class="icon-button" href="../#collection" aria-label="Buscar">⌕</a>
-      <button class="icon-button" type="button" aria-label="Mi cuenta">♙</button>
+      <a class="icon-button" href="../?buscar=1#collection" aria-label="Buscar">⌕</a>
       <a class="icon-button" href="/checkout/" aria-label="Ir a tu bolsa">Bag <span class="bag-count">0</span></a>
     </nav>
   </header>
@@ -221,6 +221,7 @@
   <dialog id="gallery-dialog"><button class="dialog-close" type="button" aria-label="Cerrar">×</button><img class="dialog-image" alt=""></dialog>
 
   <script type="module">
+    import '../store/navigation.js';
     import '../widget/try-widget.js';
     import { mountBagCount } from '../store/cart.js';
     import { formatProductPrice } from '../store/money.js';
@@ -311,6 +312,7 @@
 
       loading.hidden = true;
       productView.hidden = false;
+      if(location.hash==='#try')requestAnimationFrame(()=>widget.scrollIntoView({block:'start'}));
     }
 
     function openGalleryImage(kind) {

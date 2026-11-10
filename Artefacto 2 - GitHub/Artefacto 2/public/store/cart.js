@@ -2,6 +2,19 @@ const STORAGE_KEY = 'marea.cart.v1';
 const validQuantity = (value, minimum = 1) => Number.isInteger(value) && value >= minimum && value <= 99;
 const validIdentity = (productId, size) => typeof productId === 'string' && /^[a-z0-9-]{1,100}$/.test(productId) && ['S', 'M', 'L', 'XL'].includes(size);
 
+export function createFavorites(storage) {
+  if(storage===undefined){try{storage=globalThis.localStorage;}catch{}}
+  const valid=id=>typeof id==='string'&&/^[a-z0-9-]{1,100}$/.test(id);
+  let ids=new Set();
+  try{const saved=JSON.parse(storage?.getItem('marea.favorites.v1')||'[]');if(Array.isArray(saved))ids=new Set(saved.filter(valid));}catch{}
+  return {items:()=>[...ids],has:id=>ids.has(id),toggle(id){
+    if(!valid(id))throw Error('Prenda no válida.');
+    if(ids.has(id))ids.delete(id);else ids.add(id);
+    try{storage?.setItem('marea.favorites.v1',JSON.stringify([...ids]));}catch{}
+    return ids.has(id);
+  }};
+}
+
 export function createCart(storage) {
   if (storage === undefined) { try { storage = globalThis.localStorage; } catch {} }
   let lines = [];
