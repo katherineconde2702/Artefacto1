@@ -46,7 +46,7 @@ function renderRates(){
  map.querySelector('#map-area').addEventListener('change',event=>select(event.target.value));
  map.querySelectorAll('[data-map-zone]').forEach(region=>{region.addEventListener('click',()=>select(region.dataset.mapZone));region.addEventListener('keydown',event=>{if(['Enter',' '].includes(event.key)){event.preventDefault();select(region.dataset.mapZone);}});});
  map.querySelectorAll('[data-map-scope]').forEach(button=>button.addEventListener('click',()=>{rateMapScope=button.dataset.mapScope;rateMapZoom=1;selectors.rate.selectDepartment('');}));
- map.querySelectorAll('[data-map-zoom]').forEach(button=>button.addEventListener('click',()=>{const action=button.dataset.mapZoom;rateMapZoom=action==='reset'?1:Math.max(1,Math.min(4,action==='in'?rateMapZoom*1.5:rateMapZoom/1.5));renderRates();map.querySelector(`[data-map-zoom="${action}"]`)?.focus({preventScroll:true});}));
+ map.querySelectorAll('[data-map-zoom]').forEach(button=>button.addEventListener('click',()=>{const action=button.dataset.mapZoom;rateMapZoom=action==='reset'?1:Math.max(.5,Math.min(4,action==='in'?rateMapZoom*1.5:rateMapZoom/1.5));renderRates();map.querySelector(`[data-map-zoom="${action}"]`)?.focus({preventScroll:true});}));
 }
 function readTiers(){return [...$('#tier-editor').querySelectorAll('.tier-row')].map(row=>({minOrders:row.querySelector('[name=minOrders]').value,type:row.querySelector('[name=type]').value,value:row.querySelector('[name=value]').value}));}
 function renderTiers(tiers){
