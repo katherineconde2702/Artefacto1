@@ -9,7 +9,7 @@ import { verifyAdminToken } from './auth.mjs';
 import { createContextStore, fingerprint, secretMatches, shippingError } from './context.mjs';
 import { departments, zones } from '../../public/store/uy-geography.js';
 import { createZoneDemoState, createB2BDemoState, resolveZone, buildZoneOptions } from './zones.mjs';
-import {validateDiscountRule,validateDeliveryWindow} from '../../public/shipping-admin/rules.js';
+import {validateDiscountRule,validateDeliveryWindow,selectDeliveryOptions} from '../../public/shipping-admin/rules.js';
 
 const fail=(code,status=400)=>{throw shippingError(code,status);};
 const object=value=>value&&typeof value==='object'&&!Array.isArray(value);
@@ -179,7 +179,7 @@ export function createShippingService({env={},fetchImpl=globalThis.fetch,reposit
     async quote(body) {
       ready();keys(body,['contextToken','addressId','confirmed']);const ctx=checkoutContext(body);if(body.confirmed!==true)fail('address_confirmation_required');
       const address=owned(addresses,body.addressId,ctx,'address'),state=await snapshot(ctx.merchantId);prune();const results=[];
-      for(const option of await options(state,address)) {
+      for(const option of selectDeliveryOptions(await options(state,address))) {
         const id=randomUUID(),record=await mutate('quote_create',ctx.merchantId,{...option,id,checkoutId:ctx.id,address:{...address,confirmed:true}});
         quotes.set(id,{...option,...record,id,checkoutId:ctx.id,merchantId:ctx.merchantId,mode,retainUntil:ctx.expiresAt});results.push(publicQuote({...option,...record,id}));
       }
@@ -263,6 +263,11 @@ export function createShippingService({env={},fetchImpl=globalThis.fetch,reposit
         if(body.priceMinor<option.safetyFloorMinor)fail('external_price_below_floor',400);
         const shipment={externalOrderRef:`manual-${fingerprint({merchantId,key})}`,address:{...address,confirmed:true},priceMinor:body.priceMinor,deliveryDate:body.deliveryDate,...(option.windowId?{windowId:option.windowId,windowStart:option.windowStart,windowEnd:option.windowEnd}: {})};
         return {shipment:await save('external_create',{shipment,idempotencyKey:key,bodyHash,routeId:option.routeId,expectedVersion:option.routeVersion,expectedPolicyVersion:option.policyVersion,expectedDayVersion:option.dayVersion,candidateRoute:option.candidateRoute})};
+      }
+      const confirmation=/^\/admin\/shipments\/([^/]+)\/confirm$/.exec(path);
+      if(confirmation&&method==='POST') {
+        keys(body,['merchantId']);
+        return {shipment:await save('confirm',{shipmentId:confirmation[1]})};
       }
       const cancellation=/^\/(?:admin\/shipments|shipments)\/([^/]+)(?:\/cancel)?$/.exec(path);
       if(cancellation&&['POST','PATCH'].includes(method)) {

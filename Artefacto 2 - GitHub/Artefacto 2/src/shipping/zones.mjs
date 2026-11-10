@@ -34,13 +34,14 @@ export function createZoneDemoState(now = new Date()) {
 
 /** Optional, explicitly local sample operation for the B2B sales demo. */
 export function createB2BDemoState(now=new Date()){
-  const state=createZoneDemoState(now);state.discountRules=[{areaId:'*',enabled:true,version:1,tiers:[{minOrders:1,type:'fixed',value:5000},{minOrders:2,type:'fixed',value:10000}]}];state.windows=[];state.promotions=[];
+  const state=createZoneDemoState(now);state.discountRules=[{areaId:'*',enabled:true,version:1,tiers:[{minOrders:3,type:'fixed',value:3000},{minOrders:5,type:'fixed',value:6000},{minOrders:15,type:'fixed',value:10000}]}];state.windows=[];state.promotions=[];
+  const demands=[0,3,5,8,15,20];
   state.days.forEach((day,dayIndex)=>{
-    for(const [suffix,startTime,endTime] of [['am','10:00','13:00'],['pm','14:00','18:00']]){
-      const id=`demo-${day.deliveryDate}-${suffix}`;state.windows.push({id,deliveryDate:day.deliveryDate,startTime,endTime,capacity:10,enabled:true,version:1});
-      if(dayIndex===0)continue;
-      const route={id:'route-'+id,windowId:id,deliveryDate:day.deliveryDate,departureAt:`${day.deliveryDate}T${startTime}:00-03:00`,capacity:10,version:dayIndex,stops:[]};
-      for(let index=0;index<dayIndex;index++){
+    for(const [period,[suffix,startTime,endTime]] of [['am','10:00','13:00'],['pm','14:00','18:00']].entries()){
+      const id=`demo-${day.deliveryDate}-${suffix}`,demand=demands[dayIndex*2+period]||0;state.windows.push({id,deliveryDate:day.deliveryDate,startTime,endTime,capacity:40,enabled:true,version:1});
+      if(demand===0)continue;
+      const route={id:'route-'+id,windowId:id,deliveryDate:day.deliveryDate,departureAt:`${day.deliveryDate}T${startTime}:00-03:00`,capacity:40,version:1,stops:[]};
+      for(let index=0;index<demand;index++){
         const shipment={id:`example-${id}-${index}`,routeId:route.id,windowId:id,windowStart:startTime,windowEnd:endTime,deliveryDate:day.deliveryDate,status:'confirmed',priceMinor:24900,currency:'UYU',mode:'demo',demo:true,address:{...resolveZone('pocitos'),confirmed:true},externalOrderRef:`EJEMPLO-${id}-${index}`};
         state.shipments.push(shipment);route.stops.push({shipmentId:shipment.id,placeId:'zone:pocitos',label:'Pedido ficticio de demostración',status:'confirmed',priceMinor:24900});
       }

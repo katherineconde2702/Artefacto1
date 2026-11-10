@@ -18,6 +18,14 @@ const q=(id,priceMinor,date)=>({id,priceMinor,deliveryDate:date,currency:'UYU',e
 const quotes=[q('a',20000,'2098-01-01'),{...q('b',18000,'2098-01-02'),promotionId:'offer'},q('c',15000,'2098-01-03'),q('d',15000,'2098-01-04')];
 const ready=()=>{const widget=new Widget();widget.config={available:true,mode:'demo',pricingMode:'distance'};return widget;};
 const zones={available:true,mode:'demo',pricingMode:'zones',departments:[{id:'montevideo',name:'Montevideo'},{id:'canelones',name:'Canelones'}],areas:[{id:'centro',name:'Centro',departmentId:'montevideo',kind:'neighborhood',available:true},{id:'pocitos',name:'Pocitos',departmentId:'montevideo',kind:'neighborhood',available:false},{id:'dept-canelones',name:'Canelones',departmentId:'canelones',kind:'department',available:true}]};
+test('widget limits an older API response to five choices while preserving the cheapest later delivery',async()=>{
+ const widget=ready();widget.setContext('checkout-five');widget.session.address={id:'destination',formattedAddress:'Pocitos'};
+ const many=Array.from({length:12},(_,index)=>q(`day-${index}`,index===10?14900:24900,`2098-01-${String(index+1).padStart(2,'0')}`));
+ widget.session.request=async()=>({quotes:many});await widget.loadQuotes();widget.render();
+ assert.equal(widget.session.quotes.length,5);assert.equal((widget.shadowRoot.innerHTML.match(/name="delivery"/g)||[]).length,5);
+ assert.match(widget.shadowRoot.innerHTML,/value="day-0"/);assert.match(widget.shadowRoot.innerHTML,/value="day-10"/);
+ assert.doesNotMatch(widget.shadowRoot.innerHTML,/value="day-11"/);widget.disconnectedCallback();
+});
 test('shopper can distinguish two windows and the actual grouping price explanation',()=>{
  const widget=ready();widget.config=zones;widget.setContext('context');widget.session.quotes=[{...q('am',19900,'2098-01-01'),normalPriceMinor:24900,windowId:'am',windowStart:'10:00',windowEnd:'13:00',calculation:{source:'grouping',confirmedCount:1,discountMinor:5000}},{...q('pm',24900,'2098-01-01'),windowId:'pm',windowStart:'14:00',windowEnd:'18:00'}];widget.render();
  assert.match(widget.shadowRoot.innerHTML,/10:00.*13:00/);assert.match(widget.shadowRoot.innerHTML,/14:00.*18:00/);assert.match(widget.shadowRoot.innerHTML,/agrup/i);assert.match(widget.shadowRoot.innerHTML,/50,00/);widget.disconnectedCallback();

@@ -40,7 +40,7 @@ export function createShippingModule(options={}) {
         else if(/^\/reservations\/[^/]+\/demo-confirm$/.test(path)&&method==='POST')result=await service.demoConfirm(body,path.split('/')[2]);
         else if(/^\/shipments\/[^/]+\/confirm$/.test(path)&&method==='POST')result=await service.confirm(req,body,path.split('/')[2]);
         else if(path.startsWith('/admin/')||/^\/shipments\/[^/]+\/cancel$/.test(path)) {
-          result=await service.admin(req,body,path,method,url.searchParams);if(method==='POST'&&!path.endsWith('/cancel'))status=201;
+          result=await service.admin(req,body,path,method,url.searchParams);if(method==='POST'&&!path.endsWith('/cancel')&&!path.endsWith('/confirm'))status=201;
         } else {sendError(res,404,requestId,'shipping_route_not_found','Ruta de envíos no encontrada.');return true;}
         sendJson(res,status,result);return true;
       }catch(error) {

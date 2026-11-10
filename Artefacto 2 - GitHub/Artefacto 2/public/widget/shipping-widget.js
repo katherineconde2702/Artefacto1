@@ -1,4 +1,5 @@
 import {formatUYU} from '../store/money.js';
+import {selectDeliveryOptions} from '../shipping-admin/rules.js';
 export {formatUYU,parseUYU} from '../store/money.js';
 export const SHIPPING_API = '/api/v1/shipping';
 export function deliveryLabel(quote){return `${quote.deliveryDate}${quote.windowStart&&quote.windowEnd?` · ${quote.windowStart}–${quote.windowEnd}`:''}`;}
@@ -12,7 +13,7 @@ export async function requestJSON(url, options = {}, fetcher = globalThis.fetch)
 }
 export function validateQuotes(quotes) {
   if (!Array.isArray(quotes) || quotes.some((quote) => !quote.id || quote.currency !== 'UYU' || !Number.isSafeInteger(quote.priceMinor) || quote.priceMinor < 0 || !Number.isFinite(Date.parse(quote.expiresAt)))) throw new Error('La cotización recibida no es válida en UYU.');
-  return quotes;
+  return selectDeliveryOptions(quotes);
 }
 export class ZoneSelection {
   constructor(config,onChange=()=>{}) {this.config=config;this.onChange=onChange;this.departmentId='';this.areaId='';}
